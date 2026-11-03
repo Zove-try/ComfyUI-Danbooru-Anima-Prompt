@@ -71,6 +71,23 @@ var MANAGERS = {
     AnimaGroupIgnoreManager: { offMode: BYPASS, eventName: "anima-group-ignore-changed", switchTitle: "切换忽略" },
     AnimaGroupMuteManager: { offMode: NEVER, eventName: "anima-group-mute-changed", switchTitle: "切换禁用" }
 };
+var NODE_TITLES = {
+    AnimaGroupIgnoreManager: "组忽略管理",
+    AnimaGroupMuteManager: "组禁用管理"
+};
+function fixManagerTitle(node, className) {
+    var want = NODE_TITLES[className];
+    if (!node || !want) return;
+    var cur = String(node.title || "").trim();
+    var ignore = className === "AnimaGroupIgnoreManager";
+    var word = ignore ? "忽略" : "禁用";
+    var en = ignore ? /ignore/i : /mute/i;
+    var stale = !cur || cur === className || cur === want || cur.indexOf("组" + word + "管理") >= 0;
+    if (!stale && /anima/i.test(cur) && (cur.indexOf(word) >= 0 || en.test(cur))) stale = true;
+    if (!stale && en.test(cur) && /group|manager|管理/i.test(cur)) stale = true;
+    if (!stale) return;
+    node.title = T(want);
+}
 
 function inputIndex(node, name) {
     var ins = (node && node.inputs) || [];
@@ -262,10 +279,12 @@ app.registerExtension({
     async beforeRegisterNodeDef(nodeType, nodeData) {
         var spec = MANAGERS[nodeData.name];
         if (!spec) return;
+        nodeData.display_name = NODE_TITLES[nodeData.name];
 
         var onCreated = nodeType.prototype.onNodeCreated;
         nodeType.prototype.onNodeCreated = function () {
             var r = onCreated ? onCreated.apply(this, arguments) : undefined;
+            fixManagerTitle(this, nodeData.name);
             this.properties = this.properties || {};
             this.properties.groups = this.properties.groups || [];
             this.properties.selectedColorFilter = this.properties.selectedColorFilter || "";
@@ -297,9 +316,25 @@ app.registerExtension({
             };
             window.addEventListener(spec.eventName, this._agimOnEvt);
             this._agimTimer = setInterval(function () { self._agimTick(); }, 500);
-            setTimeout(function () { self._agimRender(); self._agimFit(); }, 200);
+            setTimeout(function () { self._agimRender(); self._agimFit(); fixManagerTitle(self, nodeData.name); }, 200);
             return r;
         };
+        if (!nodeType.prototype._agimTitleHooked) {
+            nodeType.prototype._agimTitleHooked = true;
+            var prevConfigure = nodeType.prototype.configure;
+            var titleClass = nodeData.name;
+            nodeType.prototype.configure = function () {
+                if (this._agimInConfigure) return;
+                this._agimInConfigure = true;
+                try {
+                    var r = (typeof prevConfigure === "function") ? prevConfigure.apply(this, arguments) : undefined;
+                    fixManagerTitle(this, titleClass);
+                    return r;
+                } finally {
+                    this._agimInConfigure = false;
+                }
+            };
+        }
 
         nodeType.prototype._agimBuild = function () {
             injectStyles();

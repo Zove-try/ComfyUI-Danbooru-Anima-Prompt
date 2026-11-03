@@ -1,3 +1,5 @@
+import { app as animaApp } from "/scripts/app.js";
+
 window.animaDsModelId = function (m) {
     m = (m == null || m === "") ? "" : String(m);
     if (!m) {
@@ -1119,13 +1121,19 @@ window.animaShieldDomWidget = function (el) {
         nodeType.prototype._animaChromeHooked = true;
         var prev = nodeType.prototype.onConfigure;
         nodeType.prototype.onConfigure = function () {
-            var r;
-            if (typeof prev === "function") r = prev.apply(this, arguments);
-            window.applyAnimaNodeChrome(this);
-            var self = this;
-            setTimeout(function () { window.applyAnimaNodeChrome(self); }, 50);
-            setTimeout(function () { window.applyAnimaNodeChrome(self); }, 250);
-            return r;
+            if (this._animaChromeConfiguring) return;
+            this._animaChromeConfiguring = true;
+            try {
+                var r;
+                if (typeof prev === "function" && prev !== nodeType.prototype.onConfigure) r = prev.apply(this, arguments);
+                window.applyAnimaNodeChrome(this);
+                var self = this;
+                setTimeout(function () { window.applyAnimaNodeChrome(self); }, 50);
+                setTimeout(function () { window.applyAnimaNodeChrome(self); }, 250);
+                return r;
+            } finally {
+                this._animaChromeConfiguring = false;
+            }
         };
     };
 
@@ -1890,4 +1898,57 @@ window.animaMountFavThumbCache = function (host) {
     refresh();
 };
 }
+
+(function () {
+    function ownNode(nodeData) {
+        var cat = String((nodeData && nodeData.category) || "");
+        var name = String((nodeData && nodeData.name) || "");
+        if (cat.indexOf("Anima") >= 0 || cat.indexOf("Danbooru") >= 0) return true;
+        if (name.indexOf("Anima") === 0 || name.indexOf("Danbooru") === 0 || name.indexOf("Newbie") === 0) return true;
+        return name === "TagMapper" || name === "ArtistPicker";
+    }
+    function ownLive(node) {
+        if (!node) return false;
+        var name = String(node.comfyClass || node.type || "");
+        var cat = "";
+        try { cat = String((node.constructor && (node.constructor.category || node.constructor.nodeData && node.constructor.nodeData.category)) || node.category || ""); } catch (e) {}
+        return ownNode({ name: name, category: cat });
+    }
+    function retheme() {
+        if (typeof window.applyAnimaNodeChrome !== "function") return;
+        var nodes = [];
+        try { nodes = (window.app && window.app.graph && window.app.graph._nodes) || []; } catch (e) {}
+        for (var i = 0; i < nodes.length; i++) {
+            if (ownLive(nodes[i])) window.applyAnimaNodeChrome(nodes[i]);
+        }
+        try {
+            if (window.app && window.app.graph && typeof window.app.graph.setDirtyCanvas === "function")
+                window.app.graph.setDirtyCanvas(true, true);
+        } catch (e2) {}
+    }
+    function boot() {
+        var app = animaApp || window.app;
+        if (!app || typeof app.registerExtension !== "function" || window.__animaNodeChromeExt) return;
+        window.__animaNodeChromeExt = true;
+        app.registerExtension({
+            name: "anima.nodeChrome",
+            async beforeRegisterNodeDef(nodeType, nodeData) {
+                if (!ownNode(nodeData) || !nodeType || !nodeType.prototype || nodeType.prototype._animaOwnChrome) return;
+                nodeType.prototype._animaOwnChrome = true;
+                if (typeof window.hookAnimaNodeChrome === "function") window.hookAnimaNodeChrome(nodeType);
+                var prev = nodeType.prototype.onNodeCreated;
+                nodeType.prototype.onNodeCreated = function () {
+                    var r = prev ? prev.apply(this, arguments) : undefined;
+                    window.applyAnimaNodeChrome(this);
+                    var self = this;
+                    setTimeout(function () { window.applyAnimaNodeChrome(self); }, 0);
+                    return r;
+                };
+            },
+            setup: function () { retheme(); }
+        });
+        document.addEventListener("anima-theme-change", retheme);
+    }
+    boot();
+})();
 
