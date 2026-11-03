@@ -219,11 +219,13 @@ if (typeof window.clampPopup !== "function") {
                         card.onclick = () => {
                             const tagName = it.slug || it.name;
                             if (pp && pp.remove) pp.remove();  // 输出后关闭弹窗
+                            var picked = {name: tagName, tags: it.tags||[], thumb_url: it.thumb_url||"", copyright_name: it.copyright_name||""};
                             if (window._adexOnSelect) {
-                                
-                                window._adexOnSelect({name: tagName, tags: it.tags||[], thumb_url: it.thumb_url||"", copyright_name: it.copyright_name||""});
+                                window._adexOnSelect(picked);
+                            } else if (window._adexCharFallback) {
+                                window._adexCharFallback(picked);
                             } else if (window._adexFallbackSelect) {
-                                window._adexFallbackSelect({name: tagName, tags: it.tags||[], thumb_url: it.thumb_url||"", copyright_name: it.copyright_name||""});
+                                window._adexFallbackSelect(picked);
                             }
                         };
                         // 缩略图 loading 占位
@@ -482,10 +484,12 @@ if (typeof window.clampPopup !== "function") {
                                 card._busy = true;
                                 card.style.opacity = "0.65";
                                 var cb2 = window._adexOnSelect;
+                                var chFb = window._adexCharFallback;
                                 var fb2 = window._adexFallbackSelect;
                                 _adexEnrichCharFav(tag, info).then(function(payload2) {
                                     if (pp && pp.remove) pp.remove();
                                     if (cb2) cb2(payload2);
+                                    else if (chFb) chFb(payload2);
                                     else if (fb2) fb2(payload2);
                                 }).catch(function() {
                                     card._busy = false;

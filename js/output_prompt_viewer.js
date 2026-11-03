@@ -129,7 +129,7 @@
     var _imgRate = { keys: Object.create(null) };
     var SORT_CYCLE = ["newest", "oldest", "rating", "rating_asc"];
     var _popDock = "";
-    var _popCollapsed = false;
+    var _popCollapsed = true;
     var _popLayLoaded = false;
     var _popFree = { left: 80, top: 72, w: 640, h: 440 };
     var _snapKind = "";
@@ -137,13 +137,13 @@
     var _insCollapsed = false;
     var _insFree = { left: 80, top: 120, w: 720, h: 380 };
     var _castDock = "";
-    var _castCollapsed = false;
+    var _castCollapsed = true;
     var _castLayLoaded = false;
     var _castFree = { left: null, top: null, w: 680, h: 560 };
-    var _tagCollapsed = false;
+    var _tagCollapsed = true;
     var _tagDock = "";
     var _tagFree = { left: null, top: null, w: 520, h: 520 };
-    var _modelCollapsed = false;
+    var _modelCollapsed = true;
     var _modelDock = "";
     var _modelFree = { left: null, top: null, w: 340, h: 420 };
     var _modelLayLoaded = false;

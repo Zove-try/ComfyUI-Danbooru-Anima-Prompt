@@ -240,7 +240,7 @@ if (!_mSelected.length && !w.meta_tags?.value) { _mSelected = ["highres","absurd
             chAdexBtn.style.cssText = "display:inline-flex;align-items:center;gap:3px;padding:4px 9px;border-radius:8px;cursor:pointer;font-size:13px;background:rgba(255,255,255,.08);color:var(--anima-accent-soft);border:1px solid rgba(255,255,255,.16);transition:all 0.15s ease;user-select:none;vertical-align:middle;flex-shrink:0;";
             chAdexBtn.onmouseenter = function(){ chAdexBtn.style.background="rgba(var(--anima-accent-rgb),0.15)"; chAdexBtn.style.color="var(--anima-accent-soft)"; chAdexBtn.style.borderColor="rgba(255,255,255,.28)"; chAdexBtn.style.transform="translateY(-1px)"; };
             chAdexBtn.onmouseleave = function(){ chAdexBtn.style.background="rgba(255,255,255,.08)"; chAdexBtn.style.color="var(--anima-accent-soft)"; chAdexBtn.style.borderColor="rgba(255,255,255,.16)"; chAdexBtn.style.transform=""; };
-            chAdexBtn.onclick = () => { window._adexOnSelect = null; window.openAdexPopup("char"); };
+            chAdexBtn.onclick = () => { window._artistFavOnSelect = null; window._adexOnSelect = applyCharPick; window.openAdexPopup("char"); };
             chBar.appendChild(chAdexBtn);
             // G站 选角色（图标按钮，与 NewBie 工具栏同步）
             const chGelBtn = document.createElement("button");
@@ -248,7 +248,7 @@ if (!_mSelected.length && !w.meta_tags?.value) { _mSelected = ["highres","absurd
             chGelBtn.style.cssText = "display:inline-flex;align-items:center;gap:3px;padding:4px 9px;border-radius:8px;cursor:pointer;font-size:13px;background:rgba(255,255,255,.08);color:var(--anima-accent-soft);border:1px solid rgba(255,255,255,.16);transition:all 0.15s ease;user-select:none;vertical-align:middle;flex-shrink:0;";
             chGelBtn.onmouseenter = function(){ chGelBtn.style.background="rgba(var(--anima-accent-rgb),0.15)"; chGelBtn.style.color="var(--anima-accent-soft)"; chGelBtn.style.borderColor="rgba(255,255,255,.28)"; chGelBtn.style.transform="translateY(-1px)"; };
             chGelBtn.onmouseleave = function(){ chGelBtn.style.background="rgba(255,255,255,.08)"; chGelBtn.style.color="var(--anima-accent-soft)"; chGelBtn.style.borderColor="rgba(255,255,255,.16)"; chGelBtn.style.transform=""; };
-            chGelBtn.onclick = () => { window.openGelCharsPopup(); };
+            chGelBtn.onclick = () => { window._artistFavOnSelect = null; window._adexOnSelect = applyCharPick; window.openGelCharsPopup(); };
             chBar.appendChild(chGelBtn);
             chCard.appendChild(chBar);
             // 角色卡按钮（独立一行，更显眼）
@@ -314,14 +314,14 @@ if (!_mSelected.length && !w.meta_tags?.value) { _mSelected = ["highres","absurd
             aFavBtn.style.cssText = "display:inline-flex;align-items:center;gap:3px;padding:4px 9px;border-radius:8px;cursor:pointer;font-size:13px;background:rgba(255,255,255,.08);color:var(--anima-accent-soft);border:1px solid rgba(255,255,255,.16);transition:all 0.15s ease;user-select:none;vertical-align:middle;flex-shrink:0;";
             aFavBtn.onmouseenter = function(){ aFavBtn.style.background="rgba(var(--anima-accent-rgb),0.15)"; aFavBtn.style.color="var(--anima-accent-soft)"; aFavBtn.style.borderColor="rgba(255,255,255,.28)"; aFavBtn.style.transform="translateY(-1px)"; };
             aFavBtn.onmouseleave = function(){ aFavBtn.style.background="rgba(255,255,255,.08)"; aFavBtn.style.color="var(--anima-accent-soft)"; aFavBtn.style.borderColor="rgba(255,255,255,.16)"; aFavBtn.style.transform=""; };
-            aFavBtn.onclick = () => { window.showArtistFavPopup("danbooru"); };
+            aFavBtn.onclick = () => { window._adexOnSelect = null; window._artistFavOnSelect = applyArtistFav; window.showArtistFavPopup("danbooru"); };
             aBar.appendChild(aFavBtn);
             const aAdexBtn = document.createElement("button");
             aAdexBtn.textContent = "🎨 ADex"; aAdexBtn.title = "搜画师 (Animadex)";
             aAdexBtn.style.cssText = "display:inline-flex;align-items:center;gap:3px;padding:4px 9px;border-radius:8px;cursor:pointer;font-size:13px;background:rgba(255,255,255,.08);color:var(--anima-accent-soft);border:1px solid rgba(255,255,255,.16);transition:all 0.15s ease;user-select:none;vertical-align:middle;flex-shrink:0;";
             aAdexBtn.onmouseenter = function(){ aAdexBtn.style.background="rgba(var(--anima-accent-rgb),0.15)"; aAdexBtn.style.color="var(--anima-accent-soft)"; aAdexBtn.style.borderColor="rgba(255,255,255,.28)"; aAdexBtn.style.transform="translateY(-1px)"; };
             aAdexBtn.onmouseleave = function(){ aAdexBtn.style.background="rgba(255,255,255,.08)"; aAdexBtn.style.color="var(--anima-accent-soft)"; aAdexBtn.style.borderColor="rgba(255,255,255,.16)"; aAdexBtn.style.transform=""; };
-            aAdexBtn.onclick = () => { window.openArtistBrowse(); };
+            aAdexBtn.onclick = () => { window._artistFavOnSelect = null; window._adexOnSelect = applyArtistPick; window.openArtistBrowse(); };
             aBar.appendChild(aAdexBtn);
             aCard.appendChild(aBar);
             panel.appendChild(aCard);
@@ -1954,32 +1954,44 @@ previewEl.innerHTML = (rawPartsHtml.length ? '<div style="color:var(--anima-acce
             window.openArtistBrowse = (window.openArtistBrowse) || function(){ alert("未找到 AnimaDex 画师弹窗模块"); };
             window.showArtistFavPopup = (window.showArtistFavPopup) || function(){ alert("未找到画师收藏弹窗模块"); };
 
-            // ── 组合弹窗无回调时的兜底（对应 adex_popup.js 的 _adexFallbackSelect / _adexFallbackAddTag）──
-            window._adexFallbackSelect = function(it) {
+            function _pickTagList(raw) {
+                if (!raw) return [];
+                if (Array.isArray(raw)) return raw.map(function(x){ return String(x).trim(); }).filter(Boolean);
+                return String(raw).split(/[\s,，]+/).map(function(x){ return x.trim(); }).filter(Boolean);
+            }
+            function applyCharPick(it) {
                 if (!it) return;
-                const tagName = (it.name || "").replace(/[\s-]+/g,"_").toLowerCase();
-                if (tagName) {
-                    const cur = aInp.value.split(/[,，]+/).map(function(t){return t.trim();}).filter(Boolean);
-                    if (cur.indexOf(tagName) < 0) { cur.push(tagName); aInp.value = cur.join(", "); setW("artist_tags", aInp.value); refreshPreview(); }
+                var q = String(it.name || "").replace(/^@+/, "").replace(/[\s-]+/g, "_").toLowerCase();
+                if (q) {
+                    var cur = chInp.value.split(/[,，]+/).map(function(t){ return t.trim(); }).filter(Boolean);
+                    if (cur.indexOf(q) < 0) { cur.push(q); chInp.value = cur.join(", "); setW("character_tags", chInp.value); }
                 }
-                if (it.copyright_name && !w.series_tags?.value?.includes(it.copyright_name)) {
-                    const ss = w.series_tags?.value ? w.series_tags.value.split(/[,，]+/).map(function(t){return t.trim();}).filter(Boolean) : [];
-                    if (!ss.includes(it.copyright_name)) { ss.push(it.copyright_name); setW("series_tags", ss.join(", ")); sInp.value = ss.join(", "); refreshPreview(); }
+                if (it.copyright_name) {
+                    var cp = String(it.copyright_name).replace(/[\s-]+/g, "_").toLowerCase();
+                    var ss = (w.series_tags && w.series_tags.value ? w.series_tags.value : "").split(/[,，]+/).map(function(t){ return t.trim(); }).filter(Boolean);
+                    if (cp && ss.indexOf(cp) < 0) { ss.push(cp); setW("series_tags", ss.join(", ")); sInp.value = ss.join(", "); }
                 }
-                (it.tags || []).forEach(function(ft){ window._adexFallbackAddTag && window._adexFallbackAddTag(ft); });
-            };
-            window._adexFallbackAddTag = function(ft) { addGTag((ft || "").replace(/_/g, " ")); };
-            // ── G站角色弹窗无回调时的兜底（对应 gelchars_popup.js 的 _gelFallbackSelect）──
-            window._gelFallbackSelect = function(it) {
-                if (!it || !it.name) return;
-                const q = (it.name || "").replace(/[\s-]+/g, "_").toLowerCase();
-                const cur = chInp.value.split(/[,，]+/).map(function(t){return t.trim();}).filter(Boolean);
-                if (!cur.includes(q)) { cur.push(q); chInp.value = cur.join(", "); setW("character_tags", chInp.value); }
-                const meta = ["highres","absurdres","full_body","cowboy_shot","half_body","portrait","close-up","animated","commentary","english_text","text_focus"];
-                const traits = (it.tags||"").split(" ").filter(function(t){ return !/^\d/.test(t) && !/^(solo|1girl|1boy|multiple)/i.test(t) && meta.indexOf(t.toLowerCase()) < 0; }).slice(0,8);
-                traits.forEach(function(t){ if (t) addGTag(t); });
+                var meta = ["highres","absurdres","full_body","cowboy_shot","half_body","portrait","close-up","animated","commentary","english_text","text_focus"];
+                _pickTagList(it.tags).filter(function(t){
+                    var tl = t.replace(/ /g, "_").toLowerCase();
+                    return tl && tl !== q && !/^\d/.test(tl) && !/^(solo|1girl|1boy|multiple)/i.test(tl) && meta.indexOf(tl) < 0;
+                }).slice(0, 8).forEach(function(t){ addGTag(t); });
                 renderGChips(); syncG(); refreshPreview();
-            };
+            }
+            function applyArtistName(name) {
+                var raw = String(name || "").replace(/^@+/, "").replace(/[\s-]+/g, "_").toLowerCase();
+                if (!raw) return;
+                var nn = "@" + raw;
+                var cur = aInp.value.split(/[,，]+/).map(function(t){ return t.trim(); }).filter(Boolean);
+                if (cur.indexOf(nn) < 0) { cur.push(nn); aInp.value = cur.join(", "); setW("artist_tags", aInp.value); }
+                refreshPreview();
+            }
+            function applyArtistPick(it) { if (it && it.name) applyArtistName(it.name); }
+            function applyArtistFav(nm) { applyArtistName(nm); }
+            window._adexCharFallback = applyCharPick;
+            window._adexFallbackSelect = function(it) { applyArtistPick(it); };
+            window._adexFallbackAddTag = function(ft) { addGTag((ft || "").replace(/_/g, " ")); };
+            window._gelFallbackSelect = function(it) { applyCharPick(it); };
             // ── AnimaDex 画师弹窗无回调时的兜底（对应 artist_browse_popup.js）──
             window._artistBrowseFallback = function(it) {
                 if (!it || !it.name) return;
