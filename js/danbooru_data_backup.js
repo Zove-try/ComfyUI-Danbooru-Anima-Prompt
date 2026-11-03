@@ -154,6 +154,79 @@ app.registerExtension({
                 function _saveBaiduAppid(v) {
                     localStorage.setItem("db_trans_baidu_appid", (v || "").trim());
                 }
+                function _setModelCatalog(selectEl, items, pickedId) {
+                    selectEl._modelCatalog = items || [];
+                    if (pickedId) selectEl._modelPicked = pickedId;
+                    _renderModelOptions(selectEl);
+                }
+                function _renderModelOptions(selectEl) {
+                    var q = "";
+                    if (selectEl._modelSearch) q = (selectEl._modelSearch.value || "").trim().toLowerCase();
+                    var all = selectEl._modelCatalog || [];
+                    var shown = [];
+                    var i;
+                    for (i = 0; i < all.length; i++) {
+                        var it = all[i];
+                        if (!it || !it.id) continue;
+                        var hay = ((it.label || "") + " " + it.id).toLowerCase();
+                        if (!q || hay.indexOf(q) >= 0) shown.push(it);
+                    }
+                    var picked = selectEl._modelPicked || "";
+                    selectEl.innerHTML = "";
+                    if (!all.length) {
+                        var wait = document.createElement("option");
+                        wait.value = "";
+                        wait.textContent = "请先获取模型";
+                        selectEl.appendChild(wait);
+                    } else if (!shown.length) {
+                        var none = document.createElement("option");
+                        none.value = "";
+                        none.textContent = "没有匹配的模型";
+                        selectEl.appendChild(none);
+                    } else {
+                        var found = false;
+                        for (i = 0; i < shown.length; i++) if (shown[i].id === picked) found = true;
+                        if (!found) {
+                            var hint = document.createElement("option");
+                            hint.value = "";
+                            hint.textContent = "从 " + shown.length + " 个结果里选";
+                            selectEl.appendChild(hint);
+                        }
+                        for (i = 0; i < shown.length; i++) {
+                            var op = document.createElement("option");
+                            op.value = shown[i].id;
+                            op.textContent = shown[i].label || shown[i].id;
+                            selectEl.appendChild(op);
+                        }
+                        selectEl.value = found ? picked : "";
+                    }
+                    if (selectEl._modelCount) selectEl._modelCount.textContent = all.length ? (shown.length + " / " + all.length) : "";
+                    if (selectEl._modelCurrentEl) selectEl._modelCurrentEl.textContent = picked ? ("当前使用：" + picked) : "当前使用：还没选";
+                }
+                function _attachModelFilter(selectEl) {
+                    var searchRow = document.createElement("div");
+                    searchRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;";
+                    var lab = document.createElement("span");
+                    lab.textContent = "搜索";
+                    lab.style.cssText = "color:var(--anima-mute);font-size:12px;white-space:nowrap;";
+                    var inp = document.createElement("input");
+                    inp.type = "search";
+                    inp.placeholder = "在已获取的模型里筛选";
+                    inp.autocomplete = "off";
+                    inp.style.cssText = "flex:1;padding:4px 6px;border:1px solid var(--anima-line);border-radius:4px;background:var(--anima-bg);color:#e0e0e0;font-size:12px;outline:none;color-scheme:dark;";
+                    var count = document.createElement("span");
+                    count.style.cssText = "color:var(--anima-mute);font-size:11px;white-space:nowrap;min-width:72px;text-align:right;";
+                    inp.addEventListener("input", function(){ _renderModelOptions(selectEl); });
+                    searchRow.appendChild(lab);
+                    searchRow.appendChild(inp);
+                    searchRow.appendChild(count);
+                    var current = document.createElement("div");
+                    current.style.cssText = "margin:-2px 0 8px;color:var(--anima-mute);font-size:11px;line-height:1.4;";
+                    selectEl._modelSearch = inp;
+                    selectEl._modelCount = count;
+                    selectEl._modelCurrentEl = current;
+                    return { searchRow: searchRow, currentRow: current };
+                }
                 async function _pullModels(baseUrl, selectEl, onPick) {
                     var key = (_akInp && _akInp.value || "").trim();
                     if (!key) { alert("请先填写 API Key"); return; }
@@ -162,20 +235,21 @@ app.registerExtension({
                         var r = await fetch("/danbooru_anima/llm_models", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({base_url: baseUrl, api_key: key})});
                         var d = await r.json();
                         if (!d || !d.success || !d.models || !d.models.length) { alert((d && d.error) || "没有获取到模型"); return; }
-                        var keep = selectEl.value;
-                        selectEl.innerHTML = "";
+                        var items = [];
                         for (var mi = 0; mi < d.models.length; mi++) {
                             var item = d.models[mi];
-                            var op = document.createElement("option");
-                            op.value = item.id;
-                            op.textContent = (item.name && item.name !== item.id) ? (item.name + " · " + item.id) : item.id;
-                            selectEl.appendChild(op);
+                            if (!item || !item.id) continue;
+                            items.push({ id: item.id, label: (item.name && item.name !== item.id) ? (item.name + " · " + item.id) : item.id });
                         }
-                        var found = false;
-                        for (var fi = 0; fi < selectEl.options.length; fi++) if (selectEl.options[fi].value === keep) found = true;
-                        selectEl.value = found ? keep : selectEl.options[0].value;
-                        if (onPick) onPick(selectEl.value);
-                        alert("已获取 " + d.models.length + " 个模型");
+                        if (!items.length) { alert("没有获取到模型"); return; }
+                        var keep = selectEl._modelPicked || "";
+                        var keepOk = false;
+                        for (var ki = 0; ki < items.length; ki++) if (items[ki].id === keep) keepOk = true;
+                        if (selectEl._modelSearch) selectEl._modelSearch.value = "";
+                        var chosen = keepOk ? keep : items[0].id;
+                        _setModelCatalog(selectEl, items, chosen);
+                        if (onPick) onPick(chosen);
+                        alert("已获取 " + items.length + " 个模型。模型很多时，用上面的搜索框筛选。");
                     } catch (e) {
                         alert("获取模型失败: " + (e && e.message ? e.message : e));
                     }
@@ -825,28 +899,20 @@ app.registerExtension({
                 var dsDiv = document.createElement('div'); dsDiv.style.cssText = rowStyle;
                 dsDiv.innerHTML = '<span style="'+lblStyle+'">模型</span>';
                 var dsSel = document.createElement('select'); dsSel.style.cssText = selStyle;
-                function _rememberOption(sel, id, label) {
-                    if (!id) return;
-                    var found = false;
-                    for (var oi = 0; oi < sel.options.length; oi++) if (sel.options[oi].value === id) found = true;
-                    if (!found) {
-                        var op = document.createElement('option');
-                        op.value = id;
-                        op.textContent = label || id;
-                        sel.appendChild(op);
-                    }
-                    sel.value = id;
-                }
                 var _dsShown = window.animaDsModelId ? window.animaDsModelId(_dsm) : (_dsm || "deepseek-flash");
-                _rememberOption(dsSel, _dsShown, _dsShown);
-                dsSel.onchange = function(){_dsm=dsSel.value;localStorage.setItem("db_ds_model",_dsm);localStorage.setItem("db_trans_ds_model",_dsm);};
+                _setModelCatalog(dsSel, [{ id: _dsShown, label: _dsShown }], _dsShown);
+                dsSel.onchange = function(){ if (!dsSel.value) return; dsSel._modelPicked = dsSel.value; _dsm=dsSel.value; localStorage.setItem("db_ds_model",_dsm); localStorage.setItem("db_trans_ds_model",_dsm); _renderModelOptions(dsSel); };
                 dsDiv.appendChild(dsSel);
                 var dsFetch = document.createElement('span');
                 dsFetch.textContent = '获取模型';
                 dsFetch.style.cssText = 'padding:4px 8px;border-radius:4px;background:var(--anima-line);color:var(--anima-accent-soft);cursor:pointer;font-size:12px;white-space:nowrap;';
                 dsFetch.onclick = function(){ _pullModels('https://api.deepseek.com/v1', dsSel, function(id){ _dsm = id; localStorage.setItem('db_ds_model', id); localStorage.setItem('db_trans_ds_model', id); }); };
                 dsDiv.appendChild(dsFetch);
+                var dsFilter = _attachModelFilter(dsSel);
+                transBody.appendChild(dsFilter.searchRow);
                 transBody.appendChild(dsDiv);
+                transBody.appendChild(dsFilter.currentRow);
+                _renderModelOptions(dsSel);
                 var dsUrl = document.createElement('div');
                 dsUrl.textContent = '接口：https://api.deepseek.com/v1（官方地址，点获取模型看当前上架的模型）';
                 dsUrl.style.cssText = 'margin:-4px 0 8px;color:var(--anima-mute);font-size:11px;line-height:1.4;';
@@ -892,21 +958,20 @@ app.registerExtension({
                     localStorage.setItem("db_trans_model", _tmodel);
                     localStorage.setItem("db_trans_model_cu", _tmodel);
                 }
-                if (_tmodel) _rememberOption(mdInp, _tmodel, _tmodel);
-                else {
-                    var mdEmpty = document.createElement('option');
-                    mdEmpty.value = '';
-                    mdEmpty.textContent = '请先获取模型';
-                    mdInp.appendChild(mdEmpty);
-                }
-                mdInp.onchange = function(){ if (mdInp.value) _saveCustomModel(mdInp.value); };
+                if (_tmodel) _setModelCatalog(mdInp, [{ id: _tmodel, label: _tmodel }], _tmodel);
+                else _setModelCatalog(mdInp, [], "");
+                mdInp.onchange = function(){ if (!mdInp.value) return; mdInp._modelPicked = mdInp.value; _saveCustomModel(mdInp.value); _renderModelOptions(mdInp); };
                 mdDiv.appendChild(mdInp);
                 var mdFetch = document.createElement('span');
                 mdFetch.textContent = '获取模型';
                 mdFetch.style.cssText = 'padding:4px 8px;border-radius:4px;background:var(--anima-line);color:var(--anima-accent-soft);cursor:pointer;font-size:12px;white-space:nowrap;';
                 mdFetch.onclick = function(){ _pullModels((buInp.value || _turl || '').trim(), mdInp, _saveCustomModel); };
                 mdDiv.appendChild(mdFetch);
+                var mdFilter = _attachModelFilter(mdInp);
+                transBody.appendChild(mdFilter.searchRow);
                 transBody.appendChild(mdDiv);
+                transBody.appendChild(mdFilter.currentRow);
+                _renderModelOptions(mdInp);
 
                 // Base URL 输入（自定义）
                 var buDiv = document.createElement('div'); buDiv.style.cssText = rowStyle;
@@ -927,9 +992,10 @@ app.registerExtension({
                     try{
                         _saveTKey((_akInp && _akInp.value || '').trim());
                         if (_appInp) _saveBaiduAppid(_appInp.value);
-                        if (_tp === 'deepseek' && dsSel.value) { _dsm = dsSel.value; localStorage.setItem('db_ds_model', _dsm); localStorage.setItem('db_trans_ds_model', _dsm); }
+                        if (_tp === 'deepseek' && (dsSel._modelPicked || dsSel.value)) { _dsm = dsSel._modelPicked || dsSel.value; localStorage.setItem('db_ds_model', _dsm); localStorage.setItem('db_trans_ds_model', _dsm); }
                         if (_tp === 'custom') {
-                            if (mdInp.value) { _tmodel = mdInp.value; localStorage.setItem('db_trans_model', _tmodel); localStorage.setItem('db_trans_model_cu', _tmodel); }
+                            var _pickedCu = mdInp._modelPicked || mdInp.value;
+                            if (_pickedCu) { _tmodel = _pickedCu; localStorage.setItem('db_trans_model', _tmodel); localStorage.setItem('db_trans_model_cu', _tmodel); }
                             _turl = (buInp.value || '').trim();
                             localStorage.setItem('db_trans_base_url', _turl);
                             localStorage.setItem('db_trans_base_url_cu', _turl);
@@ -1128,10 +1194,14 @@ app.registerExtension({
                     freeDiv.style.display = p==='free'?'flex':'none';
                     bmDiv.style.display = p==='free'&&_tfm==='baidu'?'flex':'none';
                     dsDiv.style.display = p==='deepseek'?'flex':'none';
+                    dsFilter.searchRow.style.display = p==='deepseek'?'flex':'none';
+                    dsFilter.currentRow.style.display = p==='deepseek'?'block':'none';
                     dsUrl.style.display = p==='deepseek'?'block':'none';
                     akDiv.style.display = p==='free'&&_tfm==='google'?'none':'flex';
                     appDiv.style.display = llm ? 'flex' : 'none';
                     mdDiv.style.display = p==='custom'?'flex':'none';
+                    mdFilter.searchRow.style.display = p==='custom'?'flex':'none';
+                    mdFilter.currentRow.style.display = p==='custom'?'block':'none';
                     buDiv.style.display = p==='custom'?'flex':'none';
                     if (_akInp) {
                         if (llm) _akInp.placeholder = '百度大模型 API Key';
@@ -1146,10 +1216,10 @@ app.registerExtension({
                         hintDiv.innerHTML = '📌 百度翻译申请：<a href="https://fanyi-api.baidu.com" target="_blank" style="color:#ffd93d;">fanyi-api.baidu.com</a> → 开通通用翻译API（免费200万字符/月）→ 获取 APP ID 和密钥<br>👆 API Key 填写格式：<b>appid:密钥</b>（冒号分隔）';
                     } else if (p === 'deepseek') {
                         hintDiv.style.display = 'block';
-                        hintDiv.innerHTML = '填 DeepSeek API Key 后点「获取模型」。列表来自官网当前上架的模型，选中即可，不用手写模型名。';
+                        hintDiv.innerHTML = '填 DeepSeek API Key 后点「获取模型」。列表来自官网当前上架的模型。模型多的时候，用下拉框上面的搜索筛选。';
                     } else if (p === 'custom') {
                         hintDiv.style.display = 'block';
-                        hintDiv.innerHTML = '先填 Base URL 和 API Key，再点「获取模型」，从该地址返回的模型里选。';
+                        hintDiv.innerHTML = '先填 Base URL 和 API Key，再点「获取模型」。中转站模型很多时，用下拉框上面的搜索框按名字筛选，再从结果里选。';
                     } else { hintDiv.style.display = 'none'; }
                 }
                 _loadTKey();
@@ -1215,9 +1285,10 @@ app.registerExtension({
                     // 同步翻译设置到后端
                     _saveTKey((_akInp && _akInp.value || '').trim());
                     if (_appInp) _saveBaiduAppid(_appInp.value);
-                    if (_tp === 'deepseek' && dsSel && dsSel.value) { _dsm = dsSel.value; localStorage.setItem('db_ds_model', _dsm); localStorage.setItem('db_trans_ds_model', _dsm); }
+                    if (_tp === 'deepseek' && dsSel && (dsSel._modelPicked || dsSel.value)) { _dsm = dsSel._modelPicked || dsSel.value; localStorage.setItem('db_ds_model', _dsm); localStorage.setItem('db_trans_ds_model', _dsm); }
                     if (_tp === 'custom') {
-                        if (mdInp && mdInp.value) { _tmodel = mdInp.value; localStorage.setItem('db_trans_model', _tmodel); localStorage.setItem('db_trans_model_cu', _tmodel); }
+                        var _savedCu = mdInp && (mdInp._modelPicked || mdInp.value);
+                        if (_savedCu) { _tmodel = _savedCu; localStorage.setItem('db_trans_model', _tmodel); localStorage.setItem('db_trans_model_cu', _tmodel); }
                         _turl = (buInp.value || '').trim();
                         localStorage.setItem('db_trans_base_url', _turl);
                         localStorage.setItem('db_trans_base_url_cu', _turl);
