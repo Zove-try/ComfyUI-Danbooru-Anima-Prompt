@@ -104,11 +104,11 @@ app.registerExtension({
             const acList = $el("div", { style: { display: "none", maxHeight: "150px", overflowY: "auto", background: "var(--anima-bg)", borderBottom: "1px solid var(--anima-title)", flexShrink: 0 } });
             const chipArea = $el("div", { style: { flex: "1 1 0%", minHeight: "0", padding: "6px 8px", overflowY: "auto", display: "flex", flexWrap: "wrap", gap: "6px", alignContent: "flex-start" } });
             chipArea.style.display = "none";
-            const chipInput = $el("textarea", { placeholder: animaTxt("🌐 输入中文翻译 · 英文tag直接添加"), style: { display: "none", width: "100%", padding: "4px 8px", border: "1px solid var(--anima-title)", background: "var(--anima-well)", color: "#e0e0e0", fontSize: "12px", outline: "none", boxSizing: "border-box", flex: "1 1 auto", minWidth: "0", flexShrink: 0, resize: "vertical", minHeight: "36px", lineHeight: "1.4", fontFamily: "inherit" } });
-            const chipInputRow = $el("div", { style: { display: "none", gap: "4px", flexShrink: 0, width: "100%", alignItems: "stretch", boxSizing: "border-box" } });
+            const chipInput = $el("input", { type: "text", className: "anima-chip-entry-input", placeholder: animaTxt("🌐 输入中文翻译 · 英文tag直接添加"), style: { display: "none", padding: "4px 8px", border: "1px solid var(--anima-title)", background: "var(--anima-well)", color: "#e0e0e0", fontSize: "12px", outline: "none", boxSizing: "border-box", lineHeight: "1.4", fontFamily: "inherit" } });
+            const chipInputRow = $el("div", { className: "anima-chip-entry", style: { display: "none" } });
             chipInputRow.appendChild(chipInput);
-            var chipTransBtn = $el("span", { textContent: animaTxt("🗘 翻译"), title: "翻译中文并加入节点", style: { display: "none", padding: "4px 10px", border: "1px solid var(--anima-title)", borderRadius: "3px", cursor: "pointer", fontSize: "11px", background: "linear-gradient(180deg,var(--anima-accent-range),var(--anima-accent-hi))", color: "#ffffff", whiteSpace: "nowrap", userSelect: "none", alignSelf: "flex-start" } });
-            chipTransBtn.onclick = function() { _doChipTranslate(chipInput); };
+            var chipTransBtn = $el("span", { className: "anima-chip-entry-btn", textContent: animaTxt("🗘 翻译"), title: "翻译中文并加入节点", style: { display: "none", padding: "4px 10px", border: "1px solid var(--anima-title)", borderRadius: "3px", cursor: "pointer", fontSize: "11px", background: "linear-gradient(180deg,var(--anima-accent-range),var(--anima-accent-hi))", color: "#ffffff", whiteSpace: "nowrap", userSelect: "none" } });
+            chipTransBtn.onclick = function() { if (!chipInput.value.trim()) { chipInput.focus(); return; } _doChipTranslate(chipInput); };
             chipInputRow.appendChild(chipTransBtn);
             chipInput.onkeydown = function(ev) {
                 if (ev.key === "Enter") {
@@ -146,7 +146,8 @@ app.registerExtension({
             function _applyChipLayout() {
                 chipArea.style.display = _chipMode ? "flex" : "none";
                 chipInputRow.style.display = _chipMode ? "flex" : "none";
-                chipTransBtn.style.display = _chipMode ? "inline" : "none";
+                chipInputRow.classList.toggle("is-on", !!_chipMode);
+                chipTransBtn.style.display = _chipMode ? "inline-flex" : "none";
                 chipInput.style.display = _chipMode ? "block" : "none";
                 tagTextarea.style.display = _chipMode ? "none" : "flex";
             }
@@ -2121,6 +2122,13 @@ var _pinApplyHeight = function(){
             };
             setTimeout(function(){ if (_avConfigured) _avRestoreUi(); else _avInitBlank(); }, 200);
             setTimeout(function(){ if (_avUserEdit) return; if (_avConfigured) _avRestoreUi(); else _avInitBlank(); }, 500);
+            var _prevAvResize = node.onResize;
+            node.onResize = function () {
+                var r;
+                if (typeof _prevAvResize === "function") r = _prevAvResize.apply(this, arguments);
+                if (_chipMode) _applyChipLayout();
+                return r;
+            };
             node.serialize_widgets = true;
             this.addDOMWidget("db_pt_ui","div",container,{onDraw:function(){}});
             collapseHiddenWidgets();

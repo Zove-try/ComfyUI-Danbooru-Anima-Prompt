@@ -351,28 +351,13 @@ if (!_mSelected.length && !w.meta_tags?.value) { _mSelected = ["highres","absurd
                     unknown.push(t);
                 }
                 if (!unknown.length || !useCloud) return results;
-                const _prov = localStorage.getItem("db_trans_provider") || "google";
-                
-                const _key = localStorage.getItem("db_trans_api_key") || ""; const _freeMode = localStorage.getItem("db_trans_free_mode") || "baidu";
-                let provider = _prov, apiKey = _key, model = "", baseUrl = "";
-                if (_prov === "free") {
-                    apiKey = _freeMode === "baidu" ? (localStorage.getItem("db_trans_key_bd") || "") : _key;
-                    provider = _freeMode;
-                } else if (_prov === "deepseek") {
-                    apiKey = localStorage.getItem("db_trans_key_ds") || "";
-                    const dsModel = localStorage.getItem("db_trans_ds_model") || "flash";
-                    model = window.animaDsModelId(dsModel);
-                    baseUrl = "https://api.deepseek.com/v1";
-                } else if (_prov === "custom") {
-                    apiKey = localStorage.getItem("db_trans_key_cu") || "";
-                    baseUrl = localStorage.getItem("db_trans_base_url_cu") || "";
-                    model = localStorage.getItem("db_trans_model_cu") || "";
-                }
-                if (!apiKey) { return results; }
+                var _tf = window.animaTranslateFields();
+                var _missTf = window.animaTransConfigError(_tf.cfg);
+                if (_missTf) { return results; }
                 try {
                     const r = await fetch("/danbooru_anima/cloud_translate", {
                         method: "POST", headers: {"Content-Type": "application/json"},
-                        body: JSON.stringify({tags: unknown, provider, api_key: apiKey, model, base_url: baseUrl})
+                        body: JSON.stringify({tags: unknown, provider: _tf.provider, api_key: _tf.api_key, model: _tf.model, base_url: _tf.base_url, baidu_appid: _tf.baidu_appid})
                     });
                     if (r.ok) {
                         const d = await r.json();
@@ -967,27 +952,13 @@ if (!_mSelected.length && !w.meta_tags?.value) { _mSelected = ["highres","absurd
                         cloudBtn.onmouseover = () => cloudBtn.style.background="rgba(255,255,255,0.08)"; cloudBtn.onmouseout = () => cloudBtn.style.background="transparent";
                         cloudBtn.onclick = () => {
                             const allTags = [...(PRESETS[ck2]||[]).filter(t => !(_deleted[ck2]||{})[t]), ...(_customPresets[ck2]||[])];
-                            const _p = localStorage.getItem("db_trans_provider") || "google";
-                const _fm = localStorage.getItem("db_trans_free_mode") || "baidu";
-                let provider = _p, apiKey = "", model = "", baseUrl = "";
-                if (_p === "deepseek") {
-                    apiKey = localStorage.getItem("db_trans_key_ds") || "";
-                    var dsModel = localStorage.getItem("db_trans_ds_model") || "flash";
-                    model = window.animaDsModelId(dsModel);
-                    baseUrl = "https://api.deepseek.com/v1";
-                } else if (_p === "custom") {
-                    apiKey = localStorage.getItem("db_trans_key_cu") || "";
-                    baseUrl = localStorage.getItem("db_trans_base_url") || "";
-                    model = localStorage.getItem("db_trans_model") || "";
-                } else if (_p === "free") {
-                    apiKey = _fm === "baidu" ? (localStorage.getItem("db_trans_key_bd") || "") : "";
-                    provider = _fm;
-                    if (provider === "baidu" && localStorage.getItem("db_trans_baidu_mode") === "llm") provider = "baidu_llm";
-                }
+                            var _tf2 = window.animaTranslateFields();
+                var _miss2 = window.animaTransConfigError(_tf2.cfg);
+                if (_miss2) { alert(_miss2); cloudBtn.textContent = "\u{1f310}"; cloudBtn.disabled = false; return; }
 
                 fetch("/danbooru_anima/cloud_translate", {
                                 method:"POST",headers:{"Content-Type":"application/json"},
-                                body:JSON.stringify({tags:allTags, provider, api_key: apiKey, model, base_url: baseUrl})
+                                body:JSON.stringify({tags:allTags, provider: _tf2.provider, api_key: _tf2.api_key, model: _tf2.model, base_url: _tf2.base_url, baidu_appid: _tf2.baidu_appid})
                             }).then(r=>r.json()).then(d=>{
                                 const tl=(d.success&&d.translations)||{};
                                 Object.assign(_allTranslations, tl);
@@ -1655,29 +1626,13 @@ if (!_mSelected.length && !w.meta_tags?.value) { _mSelected = ["highres","absurd
             
             // 自然语言翻译——和文本透传同款
             function translateNL(text, callback) {
-                const _p = localStorage.getItem("db_trans_provider") || "google";
-                const _fm = localStorage.getItem("db_trans_free_mode") || "baidu";
-                let provider = _p, apiKey = "", model = "", baseUrl = "";
-                // 和 _loadTransKey 一致：根据 provider 读对应的 key
-                if (_p === "deepseek") {
-                    apiKey = localStorage.getItem("db_trans_key_ds") || "";
-                    const dsModel = localStorage.getItem("db_trans_ds_model") || "flash";
-                    model = window.animaDsModelId(dsModel);
-                    baseUrl = "https://api.deepseek.com/v1";
-                } else if (_p === "custom") {
-                    apiKey = localStorage.getItem("db_trans_key_cu") || "";
-                    baseUrl = localStorage.getItem("db_trans_base_url") || "";
-                    model = localStorage.getItem("db_trans_model") || "";
-                } else if (_p === "free") {
-                    apiKey = _fm === "baidu" ? (localStorage.getItem("db_trans_key_bd") || "") : "";
-                    provider = _fm;
-                    if (provider === "baidu" && localStorage.getItem("db_trans_baidu_mode") === "llm") provider = "baidu_llm";
-                }
-
+                var _tf3 = window.animaTranslateFields();
+                var _miss3 = window.animaTransConfigError(_tf3.cfg);
+                if (_miss3) { alert(_miss3); callback(""); return; }
 
                 fetch("/danbooru_anima/cloud_translate", {
                     method: "POST", headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({tags: [text], provider: provider, api_key: apiKey, model: model, base_url: baseUrl, as_sentence: true, from_lang: "zh", to_lang: "en"})
+                    body: JSON.stringify({tags: [text], provider: _tf3.provider, api_key: _tf3.api_key, model: _tf3.model, base_url: _tf3.base_url, baidu_appid: _tf3.baidu_appid, as_sentence: true, from_lang: "zh", to_lang: "en"})
                 }).then(function(r){return r.json()}).then(function(d){
                     var en = "";
                     if (d.success && d.translations) { en = (Object.values(d.translations)[0] || "").replace(/\.$/,""); }

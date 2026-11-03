@@ -116,18 +116,69 @@ app.registerExtension({
                 var _turl = localStorage.getItem("db_trans_base_url_cu") || localStorage.getItem("db_trans_base_url") || "";
                 var _tkey = "";
                 var _akInp = null;
+                var _appInp = null;
+                function _baiduLlmOn() {
+                    return _tp === "free" && _tfm === "baidu" && localStorage.getItem("db_trans_baidu_mode") === "llm";
+                }
                 function _loadTKey() {
                     if (_tp === "deepseek") _tkey = localStorage.getItem("db_trans_key_ds") || "";
                     else if (_tp === "custom") _tkey = localStorage.getItem("db_trans_key_cu") || "";
-                    else if (_tfm === "baidu") _tkey = localStorage.getItem("db_trans_key_bd") || "";
+                    else if (_baiduLlmOn()) {
+                        _tkey = localStorage.getItem("db_trans_key_bd_llm") || "";
+                        if (!_tkey) {
+                            var oldLlm = localStorage.getItem("db_trans_key_bd") || "";
+                            if (oldLlm && oldLlm.indexOf(":") < 0) _tkey = oldLlm;
+                        }
+                    } else if (_tfm === "baidu") _tkey = localStorage.getItem("db_trans_key_bd") || "";
                     else _tkey = "";
                     if (_akInp) _akInp.value = _tkey;
+                    if (_appInp) {
+                        var appid = localStorage.getItem("db_trans_baidu_appid") || "";
+                        if (!appid) {
+                            var legacy = localStorage.getItem("db_trans_key_bd") || "";
+                            if (legacy.indexOf(":") >= 0) appid = legacy.split(":")[0];
+                        }
+                        _appInp.value = appid;
+                    }
                 }
                 function _saveTKey(k) {
                     if (_tp === "deepseek") localStorage.setItem("db_trans_key_ds", k);
                     else if (_tp === "custom") localStorage.setItem("db_trans_key_cu", k);
-                    else if (_tfm === "baidu") localStorage.setItem("db_trans_key_bd", k);
+                    else if (_baiduLlmOn()) {
+                        localStorage.setItem("db_trans_key_bd_llm", k);
+                        var oldBd = localStorage.getItem("db_trans_key_bd") || "";
+                        if (oldBd && oldBd.indexOf(":") < 0) localStorage.removeItem("db_trans_key_bd");
+                    } else if (_tfm === "baidu") localStorage.setItem("db_trans_key_bd", k);
                     _tkey = k;
+                }
+                function _saveBaiduAppid(v) {
+                    localStorage.setItem("db_trans_baidu_appid", (v || "").trim());
+                }
+                async function _pullModels(baseUrl, selectEl, onPick) {
+                    var key = (_akInp && _akInp.value || "").trim();
+                    if (!key) { alert("请先填写 API Key"); return; }
+                    if (!baseUrl) { alert("请先填写 Base URL"); return; }
+                    try {
+                        var r = await fetch("/danbooru_anima/llm_models", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({base_url: baseUrl, api_key: key})});
+                        var d = await r.json();
+                        if (!d || !d.success || !d.models || !d.models.length) { alert((d && d.error) || "没有获取到模型"); return; }
+                        var keep = selectEl.value;
+                        selectEl.innerHTML = "";
+                        for (var mi = 0; mi < d.models.length; mi++) {
+                            var item = d.models[mi];
+                            var op = document.createElement("option");
+                            op.value = item.id;
+                            op.textContent = (item.name && item.name !== item.id) ? (item.name + " · " + item.id) : item.id;
+                            selectEl.appendChild(op);
+                        }
+                        var found = false;
+                        for (var fi = 0; fi < selectEl.options.length; fi++) if (selectEl.options[fi].value === keep) found = true;
+                        selectEl.value = found ? keep : selectEl.options[0].value;
+                        if (onPick) onPick(selectEl.value);
+                        alert("已获取 " + d.models.length + " 个模型");
+                    } catch (e) {
+                        alert("获取模型失败: " + (e && e.message ? e.message : e));
+                    }
                 }
 
                 var ov = document.createElement("div");
@@ -767,17 +818,39 @@ app.registerExtension({
                 var bmSel = document.createElement('select'); bmSel.style.cssText = selStyle;
                 bmSel.innerHTML = '<option value="nmt">通用文本翻译</option><option value="llm">大模型翻译（更精准）</option>';
                 bmSel.value = localStorage.getItem("db_trans_baidu_mode") === "llm" ? "llm" : "nmt";
-                bmSel.onchange = function(){localStorage.setItem("db_trans_baidu_mode", bmSel.value);};
+                bmSel.onchange = function(){localStorage.setItem("db_trans_baidu_mode", bmSel.value);_loadTKey();_refreshTransUI();};
                 bmDiv.appendChild(bmSel); transBody.appendChild(bmDiv);
 
                 // DeepSeek 模型子选
                 var dsDiv = document.createElement('div'); dsDiv.style.cssText = rowStyle;
                 dsDiv.innerHTML = '<span style="'+lblStyle+'">模型</span>';
                 var dsSel = document.createElement('select'); dsSel.style.cssText = selStyle;
-                dsSel.innerHTML = '<option value="flash">V4 Flash</option><option value="pro">V4 Pro</option><option value="vision">V4 Flash Vision Exp</option>';
-                dsSel.value = _dsm;
+                function _rememberOption(sel, id, label) {
+                    if (!id) return;
+                    var found = false;
+                    for (var oi = 0; oi < sel.options.length; oi++) if (sel.options[oi].value === id) found = true;
+                    if (!found) {
+                        var op = document.createElement('option');
+                        op.value = id;
+                        op.textContent = label || id;
+                        sel.appendChild(op);
+                    }
+                    sel.value = id;
+                }
+                var _dsShown = window.animaDsModelId ? window.animaDsModelId(_dsm) : (_dsm || "deepseek-flash");
+                _rememberOption(dsSel, _dsShown, _dsShown);
                 dsSel.onchange = function(){_dsm=dsSel.value;localStorage.setItem("db_ds_model",_dsm);localStorage.setItem("db_trans_ds_model",_dsm);};
-                dsDiv.appendChild(dsSel); transBody.appendChild(dsDiv);
+                dsDiv.appendChild(dsSel);
+                var dsFetch = document.createElement('span');
+                dsFetch.textContent = '获取模型';
+                dsFetch.style.cssText = 'padding:4px 8px;border-radius:4px;background:var(--anima-line);color:var(--anima-accent-soft);cursor:pointer;font-size:12px;white-space:nowrap;';
+                dsFetch.onclick = function(){ _pullModels('https://api.deepseek.com/v1', dsSel, function(id){ _dsm = id; localStorage.setItem('db_ds_model', id); localStorage.setItem('db_trans_ds_model', id); }); };
+                dsDiv.appendChild(dsFetch);
+                transBody.appendChild(dsDiv);
+                var dsUrl = document.createElement('div');
+                dsUrl.textContent = '接口：https://api.deepseek.com/v1（官方地址，点获取模型看当前上架的模型）';
+                dsUrl.style.cssText = 'margin:-4px 0 8px;color:var(--anima-mute);font-size:11px;line-height:1.4;';
+                transBody.appendChild(dsUrl);
 
                 // API Key
                 var akDiv = document.createElement('div'); akDiv.style.cssText = rowStyle;
@@ -785,6 +858,7 @@ app.registerExtension({
                 _akInp = document.createElement('input');
                 _akInp.type = 'password'; _akInp.placeholder = 'sk-...';
                 _akInp.style.cssText = 'flex:1;padding:4px 6px;border:1px solid var(--anima-line);border-radius:4px;background:var(--anima-bg);color:#e0e0e0;font-size:12px;outline:none;';
+                _akInp.addEventListener('input', function(){_saveTKey(_akInp.value.trim());});
                 _akInp.onchange = function(){_saveTKey(_akInp.value.trim());};
                 akDiv.appendChild(_akInp);
                 var eyeBtn = document.createElement('span');
@@ -793,6 +867,15 @@ app.registerExtension({
                 eyeBtn.onclick = function(){ _akInp.type = _akInp.type === 'password' ? 'text' : 'password'; eyeBtn.textContent = _akInp.type === 'password' ? '👁' : '🙈'; };
                 akDiv.appendChild(eyeBtn);
                 transBody.appendChild(akDiv);
+                var appDiv = document.createElement('div'); appDiv.style.cssText = rowStyle;
+                appDiv.innerHTML = '<span style="'+lblStyle+'">APP ID</span>';
+                _appInp = document.createElement('input');
+                _appInp.type = 'text'; _appInp.placeholder = '百度开发者 APP ID';
+                _appInp.style.cssText = 'flex:1;padding:4px 6px;border:1px solid var(--anima-line);border-radius:4px;background:var(--anima-bg);color:#e0e0e0;font-size:12px;outline:none;';
+                _appInp.addEventListener('input', function(){_saveBaiduAppid(_appInp.value);});
+                _appInp.onchange = function(){_saveBaiduAppid(_appInp.value);};
+                appDiv.appendChild(_appInp);
+                transBody.appendChild(appDiv);
 
                 // 百度提示
                 var hintDiv = document.createElement('div');
@@ -802,11 +885,28 @@ app.registerExtension({
                 // Model 输入（自定义）
                 var mdDiv = document.createElement('div'); mdDiv.style.cssText = rowStyle;
                 mdDiv.innerHTML = '<span style="'+lblStyle+'">Model</span>';
-                var mdInp = document.createElement('input');
-                mdInp.type = 'text'; mdInp.value = _tmodel; mdInp.placeholder = '模型名';
-                mdInp.style.cssText = 'flex:1;padding:4px 6px;border:1px solid var(--anima-line);border-radius:4px;background:var(--anima-bg);color:#e0e0e0;font-size:12px;outline:none;';
-                mdInp.onchange = function(){_tmodel=mdInp.value.trim();localStorage.setItem("db_trans_model",_tmodel);localStorage.setItem("db_trans_model_cu",_tmodel);};
-                mdDiv.appendChild(mdInp); transBody.appendChild(mdDiv);
+                var mdInp = document.createElement('select');
+                mdInp.style.cssText = selStyle;
+                function _saveCustomModel(id) {
+                    _tmodel = id || '';
+                    localStorage.setItem("db_trans_model", _tmodel);
+                    localStorage.setItem("db_trans_model_cu", _tmodel);
+                }
+                if (_tmodel) _rememberOption(mdInp, _tmodel, _tmodel);
+                else {
+                    var mdEmpty = document.createElement('option');
+                    mdEmpty.value = '';
+                    mdEmpty.textContent = '请先获取模型';
+                    mdInp.appendChild(mdEmpty);
+                }
+                mdInp.onchange = function(){ if (mdInp.value) _saveCustomModel(mdInp.value); };
+                mdDiv.appendChild(mdInp);
+                var mdFetch = document.createElement('span');
+                mdFetch.textContent = '获取模型';
+                mdFetch.style.cssText = 'padding:4px 8px;border-radius:4px;background:var(--anima-line);color:var(--anima-accent-soft);cursor:pointer;font-size:12px;white-space:nowrap;';
+                mdFetch.onclick = function(){ _pullModels((buInp.value || _turl || '').trim(), mdInp, _saveCustomModel); };
+                mdDiv.appendChild(mdFetch);
+                transBody.appendChild(mdDiv);
 
                 // Base URL 输入（自定义）
                 var buDiv = document.createElement('div'); buDiv.style.cssText = rowStyle;
@@ -825,14 +925,26 @@ app.registerExtension({
                 testTrBtn.onclick = async function(){
                     testTrBtn.textContent = '⏳...'; testTrBtn.style.pointerEvents = 'none';
                     try{
-                        var _prov = _tp==='free'?_tfm:_tp;
-                        if (_prov === 'baidu' && localStorage.getItem('db_trans_baidu_mode') === 'llm') _prov = 'baidu_llm';
-                        var _m = _tp==='deepseek'?window.animaDsModelId(_dsm):(_tmodel||'');
-                        var _b = _tp==='deepseek'?'https://api.deepseek.com/v1':(_turl||'');
-                        var tr = await fetch('/danbooru_anima/cloud_translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tags:['1girl','red_hair'],provider:_prov,api_key:_tkey,model:_m,base_url:_b})});
-                        var td = await tr.json();
-                        if(td.success){var txt='';for(var k in td.translations)txt+=k+' → '+td.translations[k]+'\n';alert('测试成功:\n'+txt);}
-                        else alert('失败: '+(td.error||'未知错误'));
+                        _saveTKey((_akInp && _akInp.value || '').trim());
+                        if (_appInp) _saveBaiduAppid(_appInp.value);
+                        if (_tp === 'deepseek' && dsSel.value) { _dsm = dsSel.value; localStorage.setItem('db_ds_model', _dsm); localStorage.setItem('db_trans_ds_model', _dsm); }
+                        if (_tp === 'custom') {
+                            if (mdInp.value) { _tmodel = mdInp.value; localStorage.setItem('db_trans_model', _tmodel); localStorage.setItem('db_trans_model_cu', _tmodel); }
+                            _turl = (buInp.value || '').trim();
+                            localStorage.setItem('db_trans_base_url', _turl);
+                            localStorage.setItem('db_trans_base_url_cu', _turl);
+                        }
+                        var fields = window.animaTranslateFields();
+                        var miss = window.animaTransConfigError(fields.cfg);
+                        if (miss) { alert(miss); }
+                        else {
+                            var tr = await fetch('/danbooru_anima/cloud_translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tags:['1girl','red_hair'],provider:fields.provider,api_key:fields.api_key,model:fields.model,base_url:fields.base_url,baidu_appid:fields.baidu_appid})});
+                            var td = await tr.json();
+                            var txt = '';
+                            if (td && td.translations) { for (var k in td.translations) if (td.translations[k]) txt += k + ' → ' + td.translations[k] + '\n'; }
+                            if (td && td.success && txt) alert('测试成功:\n' + txt);
+                            else alert('失败: ' + ((td && td.error) || '没有返回译文。请核对 Key、APP ID 或模型。'));
+                        }
                     }catch(e){alert('请求失败: '+e.message);}
                     testTrBtn.textContent = animaTxt("🧪 测试翻译"); testTrBtn.style.pointerEvents = '';
                 };
@@ -1012,15 +1124,32 @@ app.registerExtension({
 
                 function _refreshTransUI(){
                     var p = _tp;
+                    var llm = _baiduLlmOn();
                     freeDiv.style.display = p==='free'?'flex':'none';
                     bmDiv.style.display = p==='free'&&_tfm==='baidu'?'flex':'none';
                     dsDiv.style.display = p==='deepseek'?'flex':'none';
+                    dsUrl.style.display = p==='deepseek'?'block':'none';
                     akDiv.style.display = p==='free'&&_tfm==='google'?'none':'flex';
+                    appDiv.style.display = llm ? 'flex' : 'none';
                     mdDiv.style.display = p==='custom'?'flex':'none';
                     buDiv.style.display = p==='custom'?'flex':'none';
-                    if (p === 'free' && _tfm === 'baidu') {
+                    if (_akInp) {
+                        if (llm) _akInp.placeholder = '百度大模型 API Key';
+                        else if (p === 'free' && _tfm === 'baidu') _akInp.placeholder = 'appid:密钥';
+                        else _akInp.placeholder = 'sk-...';
+                    }
+                    if (llm) {
+                        hintDiv.style.display = 'block';
+                        hintDiv.innerHTML = '大模型翻译填两样：开发者信息里的 <b>APP ID</b>，以及 <a href="https://fanyi-api.baidu.com/manage/apiKey" target="_blank" style="color:#ffd93d;">API Key 管理</a> 里创建的 <b>API Key</b>。不要填通用翻译的 appid:密钥。两种模式的 Key 分开保存。';
+                    } else if (p === 'free' && _tfm === 'baidu') {
                         hintDiv.style.display = 'block';
                         hintDiv.innerHTML = '📌 百度翻译申请：<a href="https://fanyi-api.baidu.com" target="_blank" style="color:#ffd93d;">fanyi-api.baidu.com</a> → 开通通用翻译API（免费200万字符/月）→ 获取 APP ID 和密钥<br>👆 API Key 填写格式：<b>appid:密钥</b>（冒号分隔）';
+                    } else if (p === 'deepseek') {
+                        hintDiv.style.display = 'block';
+                        hintDiv.innerHTML = '填 DeepSeek API Key 后点「获取模型」。列表来自官网当前上架的模型，选中即可，不用手写模型名。';
+                    } else if (p === 'custom') {
+                        hintDiv.style.display = 'block';
+                        hintDiv.innerHTML = '先填 Base URL 和 API Key，再点「获取模型」，从该地址返回的模型里选。';
                     } else { hintDiv.style.display = 'none'; }
                 }
                 _loadTKey();
@@ -1084,7 +1213,17 @@ app.registerExtension({
                     _saveDCreds();
                     _saveGCreds();
                     // 同步翻译设置到后端
-                    fetch('/danbooru_anima/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({translation_provider:_tp,translation_api_key:_tkey,translation_model:_tp==='deepseek'?window.animaDsModelId(_dsm):(_tmodel||''),translation_base_url:_tp==='deepseek'?'https://api.deepseek.com/v1':(_turl||'')})}).catch(function(){});
+                    _saveTKey((_akInp && _akInp.value || '').trim());
+                    if (_appInp) _saveBaiduAppid(_appInp.value);
+                    if (_tp === 'deepseek' && dsSel && dsSel.value) { _dsm = dsSel.value; localStorage.setItem('db_ds_model', _dsm); localStorage.setItem('db_trans_ds_model', _dsm); }
+                    if (_tp === 'custom') {
+                        if (mdInp && mdInp.value) { _tmodel = mdInp.value; localStorage.setItem('db_trans_model', _tmodel); localStorage.setItem('db_trans_model_cu', _tmodel); }
+                        _turl = (buInp.value || '').trim();
+                        localStorage.setItem('db_trans_base_url', _turl);
+                        localStorage.setItem('db_trans_base_url_cu', _turl);
+                    }
+                    var _saved = window.animaTranslateFields();
+                    fetch('/danbooru_anima/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({translation_provider:_saved.provider,translation_api_key:_saved.api_key,translation_model:_saved.model,translation_base_url:_saved.base_url,translation_baidu_appid:_saved.baidu_appid})}).catch(function(){});
                     ov.remove();
                 };
                 okDiv.appendChild(okBtn); box.appendChild(okDiv);

@@ -273,37 +273,18 @@ export function openPromptFavPopup(node, currentText, onSelect) {
                         _apiTags.push(t.replace(/ /g, "_"));
                     }
                 }
-                var _prov = localStorage.getItem("db_trans_provider") || "free";
-                var _apiKey = ""; var _mod = ""; var _url = "";
-                if (_prov === "google" || _prov === "free") {
-                    _prov = localStorage.getItem("db_free_mode") || "baidu";
-                    _mod = ""; _url = "";
-                    if (_prov === "baidu") {
-                        _apiKey = localStorage.getItem("db_trans_key_bd") || "";
-                        if (!_apiKey || _apiKey.indexOf(":") < 0) { alert("请先设置百度翻译（格式: appid:secret）"); btn.textContent = "🌐 翻译 " + _stillUnknown2.length + " 个未翻译标签"; btn.style.pointerEvents = ""; return; }
-                    } else {
-                        _apiKey = _prov === "google" ? "" : "";
-                    }
-                } else if (_prov === "deepseek") {
-                    _apiKey = localStorage.getItem("db_trans_key_ds") || "";
-                    _mod = window.animaDsModelId(localStorage.getItem("db_trans_ds_model") || localStorage.getItem("db_ds_model") || "flash");
-                    _url = "https://api.deepseek.com/v1";
-                    if (!_apiKey) { alert("请先设置 DeepSeek API Key"); btn.textContent = "🌐 翻译 " + _stillUnknown2.length + " 个未翻译标签"; btn.style.pointerEvents = ""; return; }
-                } else if (_prov === "siliconflow") {
-                    _apiKey = localStorage.getItem("db_trans_key_sf") || "";
-                    _mod = localStorage.getItem("db_trans_model_sf") || "";
-                    _url = "https://api.siliconflow.cn/v1";
-                    if (!_apiKey) { alert("请先设置 SiliconFlow API Key"); btn.textContent = "🌐 翻译 " + _stillUnknown2.length + " 个未翻译标签"; btn.style.pointerEvents = ""; return; }
-                } else if (_prov === "custom") {
-                    _apiKey = localStorage.getItem("db_trans_key_cu") || "";
-                    _mod = localStorage.getItem("db_trans_model_cu") || "";
-                    _url = localStorage.getItem("db_trans_base_url_cu") || "";
-                    if (!_apiKey || !_url) { alert("请先设置自定义 API"); btn.textContent = "🌐 翻译 " + _stillUnknown2.length + " 个未翻译标签"; btn.style.pointerEvents = ""; return; }
-                }
+                var _fields = window.animaTranslateFields();
+                var _missFav = window.animaTransConfigError(_fields.cfg);
+                if (_missFav) { alert(_missFav); btn.textContent = "🌐 翻译 " + _stillUnknown2.length + " 个未翻译标签"; btn.style.pointerEvents = ""; return; }
+                var _prov = _fields.provider;
+                var _apiKey = _fields.api_key;
+                var _mod = _fields.model;
+                var _url = _fields.base_url;
+                var _bdApp = _fields.baidu_appid;
                 try {
                     var _tr = await fetch("/danbooru_anima/cloud_translate", {
                         method: "POST", headers: {"Content-Type":"application/json"},
-                        body: JSON.stringify({tags: _apiTags, provider: _prov, api_key: _apiKey, model: _mod, base_url: _url}),
+                        body: JSON.stringify({tags: _apiTags, provider: _prov, api_key: _apiKey, model: _mod, base_url: _url, baidu_appid: _bdApp}),
                     });
                     var _td = await _tr.json();
                     if (_td.success && _td.translations) {
@@ -318,7 +299,7 @@ export function openPromptFavPopup(node, currentText, onSelect) {
                                         var _retryText = _mergedExtra[ui].replace(/; /g, ", ");
                                         var _rr = await fetch("/danbooru_anima/cloud_translate", {
                                             method: "POST", headers: {"Content-Type":"application/json"},
-                                            body: JSON.stringify({tags: [_retryText], provider: _prov, api_key: _apiKey, model: _mod, base_url: _url, as_sentence: true}),
+                                            body: JSON.stringify({tags: [_retryText], provider: _prov, api_key: _apiKey, model: _mod, base_url: _url, baidu_appid: _bdApp, as_sentence: true}),
                                         });
                                         var _rd = await _rr.json();
                                         console.log("[pf] retry success="+_rd.success+" keys="+Object.keys(_rd.translations||{}).map(function(k){return k.substring(0,30);}));

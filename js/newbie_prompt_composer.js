@@ -1082,25 +1082,12 @@ const NB_DEFAULT_ASSIGN = {
             nlTransBtn.onclick = function(){
                 var q = nlInp.value.trim(); if (!q) return;
                 nlTransBtn.textContent = "..."; nlTransBtn.disabled = true;
-                var _tp = localStorage.getItem("db_trans_provider") || "google";
-                var _tfm = localStorage.getItem("db_trans_free_mode") || "baidu";
-                var provider = _tp, apiKey = "", model = "", baseUrl = "";
-                if (_tp === "deepseek") {
-                    apiKey = localStorage.getItem("db_trans_key_ds") || "";
-                    model = window.animaDsModelId(localStorage.getItem("db_trans_ds_model") || localStorage.getItem("db_ds_model") || "flash");
-                    baseUrl = "https://api.deepseek.com/v1";
-                } else if (_tp === "custom") {
-                    apiKey = localStorage.getItem("db_trans_key_cu") || "";
-                    baseUrl = localStorage.getItem("db_trans_base_url") || "";
-                    model = localStorage.getItem("db_trans_model") || "";
-                } else if (_tp === "free") {
-                    apiKey = _tfm === "baidu" ? (localStorage.getItem("db_trans_key_bd") || "") : "";
-                    provider = _tfm;
-                    if (provider === "baidu" && localStorage.getItem("db_trans_baidu_mode") === "llm") provider = "baidu_llm";
-                }
+                var _tf = window.animaTranslateFields();
+                var _missNb = window.animaTransConfigError(_tf.cfg);
+                if (_missNb) { alert(_missNb); nlTransBtn.textContent = "🌐"; nlTransBtn.disabled = false; return; }
                 fetch("/danbooru_anima/cloud_translate", {
                     method:"POST", headers:{"Content-Type":"application/json"},
-                    body: JSON.stringify({tags:[q], provider:provider, api_key:apiKey, model:model, base_url:baseUrl, as_sentence:true, from_lang:"zh", to_lang:"en"})
+                    body: JSON.stringify({tags:[q], provider:_tf.provider, api_key:_tf.api_key, model:_tf.model, base_url:_tf.base_url, baidu_appid:_tf.baidu_appid, as_sentence:true, from_lang:"zh", to_lang:"en"})
                 }).then(function(r){return r.json()}).then(function(d){
                     var en = ""; if (d.success && d.translations) en = (Object.values(d.translations)[0] || "").replace(/\.$/,"");
                     nlResult.textContent = en;

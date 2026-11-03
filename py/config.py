@@ -37,6 +37,7 @@ DEFAULT_SETTINGS = {
     "translation_api_key": "",
     "translation_model": "",
     "translation_base_url": "",
+    "translation_baidu_appid": "",
 }
 
 def load_settings():

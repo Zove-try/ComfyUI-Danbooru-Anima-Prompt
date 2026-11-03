@@ -1465,7 +1465,7 @@ def register_routes():
                         base_url = mp.get("base_url", "") or base_url
                     for i in range(0, len(unknown), 8):
                         batch = unknown[i:i+8]
-                        cloud_results = cloud_translate(batch, provider=provider, api_key=api_key, model=model, base_url=base_url)
+                        cloud_results = cloud_translate(batch, provider=provider, api_key=api_key, model=model, base_url=base_url, baidu_appid=settings.get("translation_baidu_appid", ""))
                         for t, cn in cloud_results.items():
                             result[t] = cn
             return web.json_response({"success": True, "translations": result})
@@ -1485,10 +1485,24 @@ def register_routes():
             as_sentence = data.get("as_sentence", False)
             from_lang = data.get("from_lang", "en")
             to_lang = data.get("to_lang", "zh")
+            baidu_appid = data.get("baidu_appid", "")
             if not tags:
                 return web.json_response({"success": True, "translations": {}})
-            results = cloud_translate(tags, provider=provider, api_key=api_key, model=model, base_url=base_url, as_sentence=as_sentence, from_lang=from_lang, to_lang=to_lang)
+            results = cloud_translate(tags, provider=provider, api_key=api_key, model=model, base_url=base_url, as_sentence=as_sentence, from_lang=from_lang, to_lang=to_lang, baidu_appid=baidu_appid)
             return web.json_response({"success": True, "translations": results})
+        except Exception as e:
+            return web.json_response({"success": False, "error": str(e)}, status=500)
+
+    @PromptServer.instance.routes.post("/danbooru_anima/llm_models")
+    async def llm_models_api(request):
+        """按用户填的地址拉取 OpenAI 兼容模型列表。Key 只转发给该地址，不写日志。"""
+        try:
+            from .cloud_translate import list_llm_models
+            data = await request.json()
+            models, err = list_llm_models(data.get("base_url", ""), data.get("api_key", ""))
+            if err:
+                return web.json_response({"success": False, "error": err})
+            return web.json_response({"success": True, "models": models})
         except Exception as e:
             return web.json_response({"success": False, "error": str(e)}, status=500)
 
@@ -1650,7 +1664,7 @@ def register_routes():
         try:
             data = await request.json()
             settings = load_settings()
-            allowed_keys = ("danbooru_username", "danbooru_api_key", "blacklist_tags", "translation_provider", "translation_api_key", "translation_model", "translation_base_url",)
+            allowed_keys = ("danbooru_username", "danbooru_api_key", "blacklist_tags", "translation_provider", "translation_api_key", "translation_model", "translation_base_url", "translation_baidu_appid",)
             for key in allowed_keys:
                 if key in data:
                     old_val = settings.get(key)

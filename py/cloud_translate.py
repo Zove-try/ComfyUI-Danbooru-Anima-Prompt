@@ -182,25 +182,42 @@ def _baidu_apply_rows(items, rows):
     return mapped
 
 
-def _baidu_request(q, appid, secret, from_lang, to_lang, llm):
-    salt = str(random.randint(32768, 65536))
-    sign = hashlib.md5((appid + q + salt + secret).encode("utf-8")).hexdigest()
-    payload = {
-        "q": q,
-        "from": from_lang,
-        "to": to_lang,
-        "appid": appid,
-        "salt": salt,
-        "sign": sign,
-    }
-    url = _BAIDU_LLM_URL if llm else _BAIDU_NMT_URL
-    if llm:
-        payload["model_type"] = "llm"
+def _baidu_request(q, appid, secret, from_lang, to_lang, llm, bearer=""):
+    headers = None
+    as_json = False
+    if llm and bearer:
+        payload = {
+            "q": q,
+            "from": from_lang,
+            "to": to_lang,
+            "appid": appid,
+            "model_type": "llm",
+        }
+        headers = {"Authorization": "Bearer " + bearer, "Content-Type": "application/json"}
+        url = _BAIDU_LLM_URL
+        as_json = True
+    else:
+        salt = str(random.randint(32768, 65536))
+        sign = hashlib.md5((appid + q + salt + secret).encode("utf-8")).hexdigest()
+        payload = {
+            "q": q,
+            "from": from_lang,
+            "to": to_lang,
+            "appid": appid,
+            "salt": salt,
+            "sign": sign,
+        }
+        url = _BAIDU_LLM_URL if llm else _BAIDU_NMT_URL
+        if llm:
+            payload["model_type"] = "llm"
     last = None
     for attempt in range(3):
         _baidu_pace()
         try:
-            resp = _session.post(url, data=payload, timeout=20)
+            if as_json:
+                resp = _session.post(url, json=payload, headers=headers, timeout=20)
+            else:
+                resp = _session.post(url, data=payload, timeout=20)
             data = resp.json()
         except Exception as e:
             print(f"[Anima] 百度翻译请求失败: {e}")
@@ -226,10 +243,10 @@ def _baidu_request(q, appid, secret, from_lang, to_lang, llm):
     return last
 
 
-def _baidu_chunk(items, appid, secret, from_lang, to_lang, llm):
+def _baidu_chunk(items, appid, secret, from_lang, to_lang, llm, bearer=""):
     if not items:
         return {}
-    data = _baidu_request("\n".join(items), appid, secret, from_lang, to_lang, llm)
+    data = _baidu_request("\n".join(items), appid, secret, from_lang, to_lang, llm, bearer=bearer)
     if not data:
         return {}
     if data.get("_fatal"):
@@ -267,12 +284,37 @@ def translate_via_baidu(texts, api_key, from_lang="en", to_lang="zh"):
 
 
 # ── 百度大模型翻译（同 key，质量更高；失败由上层回退通用翻译） ──
-def translate_via_baidu_llm(texts, api_key, from_lang="en", to_lang="zh"):
+def _translate_baidu_bearer(texts, appid, api_key, from_lang, to_lang):
+    results = {}
+    for chunk in _chunk_texts(texts, 20, 2800):
+        got = _baidu_chunk(chunk, appid, "", from_lang, to_lang, True, bearer=api_key)
+        if got.get("_fatal") is True:
+            break
+        results.update(got)
+        missing = [t for t in chunk if t not in got]
+        if missing and len(chunk) > 1:
+            for text in missing:
+                one = _baidu_chunk([text], appid, "", from_lang, to_lang, True, bearer=api_key)
+                if one.get("_fatal") is True:
+                    return results
+                results.update(one)
+    return results
+
+
+def translate_via_baidu_llm(texts, api_key, from_lang="en", to_lang="zh", appid=""):
     """
-    调用百度大模型文本翻译 API（ait/api/aiTextTranslate）
-    api_key 格式: appid:secret（与通用翻译相同）
+    百度大模型文本翻译。
+    新接口：api_key 是 API Key 管理里的 Key，appid 单独传，走 Bearer。
+    旧接口：api_key 仍是 appid:secret，走签名。
     """
-    return _translate_baidu_many(texts, api_key, from_lang, to_lang, True)
+    api_key = (api_key or "").strip()
+    appid = (appid or "").strip()
+    if api_key and ":" in api_key:
+        return _translate_baidu_many(texts, api_key, from_lang, to_lang, True)
+    if not api_key or not appid:
+        print("[Anima] 百度大模型翻译缺少 API Key 或 APP ID")
+        return {}
+    return _translate_baidu_bearer(texts, appid, api_key, from_lang, to_lang)
 
 def _google_fetch(text, from_lang, to_lang, session):
     url = "https://translate.googleapis.com/translate_a/single"
@@ -535,7 +577,53 @@ def translate_via_microsoft(texts, api_key=None, from_lang="en", to_lang="zh"):
 _load_cloud_cache()
 
 # ── 统一翻译入口 ──
-def cloud_translate(tags, provider="google", api_key=None, model=None, base_url=None, as_sentence=False, from_lang="en", to_lang="zh"):
+def list_llm_models(base_url, api_key):
+    """OpenAI 兼容的 GET {base}/models。DeepSeek 官方和中转站都走这一份。"""
+    base = (base_url or "").strip().rstrip("/")
+    key = (api_key or "").strip()
+    if not base or not key:
+        return None, "请先填写地址和 API Key"
+    if not (base.startswith("https://") or base.startswith("http://")):
+        return None, "地址需要以 http:// 或 https:// 开头"
+    urls = [base + "/models"]
+    if base.endswith("/v1"):
+        urls.append(base[:-3].rstrip("/") + "/models")
+    last_status = 0
+    for url in urls:
+        try:
+            resp = _session.get(url, headers={"Authorization": "Bearer " + key}, timeout=20)
+        except Exception as e:
+            print(f"[Anima] 获取模型列表失败: {e}")
+            return None, "请求失败，请检查地址能不能从这台电脑访问"
+        last_status = resp.status_code
+        if resp.status_code != 200:
+            continue
+        try:
+            data = resp.json()
+        except Exception:
+            return None, "返回的不是模型列表"
+        rows = data.get("data") if isinstance(data, dict) else None
+        if not isinstance(rows, list):
+            continue
+        models = []
+        seen = set()
+        for item in rows:
+            if not isinstance(item, dict):
+                continue
+            mid = str(item.get("id") or "").strip()
+            if not mid or mid in seen:
+                continue
+            seen.add(mid)
+            name = str(item.get("name") or mid).strip() or mid
+            models.append({"id": mid, "name": name})
+        if models:
+            return models, ""
+    if last_status and last_status != 200:
+        return None, "获取失败 HTTP " + str(last_status)
+    return None, "这个地址没有返回模型列表"
+
+
+def cloud_translate(tags, provider="google", api_key=None, model=None, base_url=None, as_sentence=False, from_lang="en", to_lang="zh", baidu_appid=None):
     """
     批量云翻译。返回 {tag: chinese}。
     只对本地无翻译的 tag 发请求；结果如需缓存则写缓存。
@@ -580,11 +668,11 @@ def cloud_translate(tags, provider="google", api_key=None, model=None, base_url=
         new_results = translate_via_microsoft(to_translate, api_key, from_lang, to_lang)
     elif provider == "baidu" or provider.startswith("baidu"):
         if provider == "baidu_llm":
-            # 大模型翻译优先，缺失/失败自动回退通用翻译
-            new_results = translate_via_baidu_llm(to_translate, api_key, from_lang, to_lang)
-            missing = [t for t in to_translate if t not in new_results]
-            if missing:
-                new_results.update(translate_via_baidu(missing, api_key, from_lang, to_lang))
+            new_results = translate_via_baidu_llm(to_translate, api_key, from_lang, to_lang, appid=baidu_appid or "")
+            if api_key and ":" in str(api_key):
+                missing = [t for t in to_translate if t not in new_results]
+                if missing:
+                    new_results.update(translate_via_baidu(missing, api_key, from_lang, to_lang))
         else:
             new_results = translate_via_baidu(to_translate, api_key, from_lang, to_lang)
     elif provider.startswith("deepseek"):

@@ -2,14 +2,15 @@ window.animaDsModelId = function (m) {
     m = (m == null || m === "") ? "" : String(m);
     if (!m) {
         try {
-            m = localStorage.getItem("db_trans_ds_model") || localStorage.getItem("db_ds_model") || "flash";
+            m = localStorage.getItem("db_trans_ds_model") || localStorage.getItem("db_ds_model") || "";
         } catch (e) {
-            m = "flash";
+            m = "";
         }
     }
+    if (!m || m === "flash") return "deepseek-flash";
     if (m === "pro") return "deepseek-v4-pro";
-    if (m === "vision") return "deepseek-v4-flash-vision-exp";
-    return "deepseek-v4-flash";
+    if (m === "vision") return "deepseek-flash";
+    return m;
 };
 
 // 每次翻译都重新读顶栏设置。节点里旧的闭包会把「免费/百度」和 Key 读错。
@@ -23,6 +24,7 @@ window.animaResolveTranslator = function () {
     var apiKey = "";
     var model = "";
     var baseUrl = "";
+    var baiduAppid = "";
     if (tp === "deepseek") {
         provider = "deepseek";
         apiKey = ls("db_trans_key_ds");
@@ -44,8 +46,21 @@ window.animaResolveTranslator = function () {
         else if (tp === "microsoft") fm = "microsoft";
         provider = fm || "baidu";
         if (provider === "baidu") {
-            apiKey = ls("db_trans_key_bd");
-            if (ls("db_trans_baidu_mode") === "llm") provider = "baidu_llm";
+            var nmtKey = ls("db_trans_key_bd");
+            if (ls("db_trans_baidu_mode") === "llm") {
+                provider = "baidu_llm";
+                var bearer = ls("db_trans_key_bd_llm");
+                if (!bearer && nmtKey && nmtKey.indexOf(":") < 0) bearer = nmtKey;
+                if (bearer) {
+                    apiKey = bearer;
+                    baiduAppid = ls("db_trans_baidu_appid");
+                    if (!baiduAppid && nmtKey.indexOf(":") >= 0) baiduAppid = nmtKey.split(":")[0];
+                } else if (nmtKey.indexOf(":") >= 0) {
+                    apiKey = nmtKey;
+                }
+            } else {
+                apiKey = nmtKey;
+            }
         } else if (provider === "microsoft") {
             apiKey = ls("db_trans_key_ms");
         } else {
@@ -53,18 +68,35 @@ window.animaResolveTranslator = function () {
             apiKey = "";
         }
     }
-    return { provider: provider, apiKey: apiKey, model: model, baseUrl: baseUrl, freeMode: fm, rawProvider: tp };
+    return { provider: provider, apiKey: apiKey, model: model, baseUrl: baseUrl, freeMode: fm, rawProvider: tp, baiduAppid: baiduAppid };
+};
+
+window.animaTranslateFields = function () {
+    var cfg = window.animaResolveTranslator();
+    return {
+        cfg: cfg,
+        provider: cfg.provider,
+        api_key: cfg.apiKey || "",
+        model: cfg.model || "",
+        base_url: cfg.baseUrl || "",
+        baidu_appid: cfg.baiduAppid || ""
+    };
 };
 
 window.animaTransConfigError = function (cfg) {
     if (!cfg) return "请先在顶栏 Anima 图标弹窗中设置翻译";
     var p = cfg.provider;
-    if (p === "baidu" || p === "baidu_llm") {
+    if (p === "baidu") {
         if (!cfg.apiKey || cfg.apiKey.indexOf(":") < 0) return "请先在顶栏 Anima 图标弹窗中设置翻译（百度 Key 格式为 appid:密钥）";
+    } else if (p === "baidu_llm") {
+        if (cfg.apiKey && cfg.apiKey.indexOf(":") >= 0) return "";
+        if (!cfg.apiKey) return "请先在总设置里填写百度大模型 API Key";
+        if (!cfg.baiduAppid) return "请先在总设置里填写百度 APP ID。大模型翻译要 APP ID 和 API Key，不是通用翻译的 appid:密钥";
     } else if (p === "deepseek" || p === "siliconflow" || p === "microsoft") {
         if (!cfg.apiKey) return "请先在顶栏 Anima 图标弹窗中设置翻译";
     } else if (p === "custom") {
-        if (!cfg.apiKey || !cfg.baseUrl || !cfg.model) return "请先在顶栏 Anima 图标弹窗中设置翻译";
+        if (!cfg.apiKey || !cfg.baseUrl) return "请先在顶栏 Anima 图标弹窗中设置翻译";
+        if (!cfg.model) return "请先在总设置里点「获取模型」，再选一个模型";
     }
     return "";
 };
@@ -115,6 +147,7 @@ window.animaCloudTranslate = async function (tags, extra) {
                     model: cfg.model || "",
                     base_url: cfg.baseUrl || ""
                 };
+                if (cfg.baiduAppid) payload.baidu_appid = cfg.baiduAppid;
                 if (extra.from_lang) payload.from_lang = extra.from_lang;
                 if (extra.to_lang) payload.to_lang = extra.to_lang;
                 if (extra.as_sentence) payload.as_sentence = true;
@@ -137,6 +170,21 @@ window.animaCloudTranslate = async function (tags, extra) {
     return out;
 };
 
+
+(function () {
+    if (window.__animaChipEntryCss) return;
+    window.__animaChipEntryCss = true;
+    var st = document.getElementById("anima-chip-entry-css");
+    if (!st) {
+        st = document.createElement("style");
+        st.id = "anima-chip-entry-css";
+        (document.head || document.documentElement).appendChild(st);
+    }
+    st.textContent =
+        ".anima-chip-entry.is-on{display:flex!important;flex:0 0 auto!important;width:100%!important;min-height:40px!important;box-sizing:border-box!important;align-items:center!important;gap:6px!important;padding:4px 6px!important;}" +
+        ".anima-chip-entry.is-on>.anima-chip-entry-input{display:block!important;flex:1 1 0%!important;width:auto!important;min-width:80px!important;height:32px!important;min-height:32px!important;max-height:32px!important;visibility:visible!important;opacity:1!important;position:static!important;margin:0!important;}" +
+        ".anima-chip-entry.is-on>.anima-chip-entry-btn{display:inline-flex!important;flex:0 0 auto!important;align-items:center!important;visibility:visible!important;position:static!important;}";
+})();
 
 (function () {
     if (window.__animaPointerUnlockV5) return;

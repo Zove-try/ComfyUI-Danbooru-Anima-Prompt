@@ -193,11 +193,11 @@ app.registerExtension({
             const toolbar = $el("div", { style: { display: "flex", gap: "6px", padding: "3px 6px", borderBottom: "1px solid var(--anima-title)", background: "var(--anima-bg-deep)", flexShrink: 0, flexWrap: "wrap", alignItems: "center" } });
             const chipArea = $el("div", { style: { flex: 1, padding: "6px 8px", overflowY: "auto", display: "flex", flexWrap: "wrap", gap: "6px", alignContent: "flex-start" } });
             chipArea.style.display = "none";
-            const chipInput = $el("textarea", { placeholder: animaTxt("🌐 输入中文翻译 · 英文tag直接添加"), style: { display: "none", width: "100%", padding: "4px 8px", border: "1px solid var(--anima-title)", background: "var(--anima-well)", color: "#e0e0e0", fontSize: "12px", outline: "none", boxSizing: "border-box", flexShrink: 0, resize: "vertical", minHeight: "36px", lineHeight: "1.4", fontFamily: "inherit" } });
-            const chipInputRow = $el("div", { style: { display: "none", gap: "4px", flexShrink: 0 } });
+            const chipInput = $el("input", { type: "text", className: "anima-chip-entry-input", placeholder: animaTxt("🌐 输入中文翻译 · 英文tag直接添加"), style: { display: "none", padding: "4px 8px", border: "1px solid var(--anima-title)", background: "var(--anima-well)", color: "#e0e0e0", fontSize: "12px", outline: "none", boxSizing: "border-box", lineHeight: "1.4", fontFamily: "inherit" } });
+            const chipInputRow = $el("div", { className: "anima-chip-entry", style: { display: "none" } });
             chipInputRow.appendChild(chipInput);
-            var chipTransBtn = $el("span", { textContent: animaTxt("🗘 翻译"), title: "翻译中文并加入节点", style: { display: "none", padding: "4px 10px", border: "1px solid var(--anima-title)", borderRadius: "3px", cursor: "pointer", fontSize: "11px", background: "linear-gradient(180deg,var(--anima-accent-range),var(--anima-accent-hi))", color: "#ffffff", whiteSpace: "nowrap", userSelect: "none", alignSelf: "flex-start" } });
-            chipTransBtn.onclick = function() { _doChipTranslate(chipInput); };
+            var chipTransBtn = $el("span", { className: "anima-chip-entry-btn", textContent: animaTxt("🗘 翻译"), title: "翻译中文并加入节点", style: { display: "none", padding: "4px 10px", border: "1px solid var(--anima-title)", borderRadius: "3px", cursor: "pointer", fontSize: "11px", background: "linear-gradient(180deg,var(--anima-accent-range),var(--anima-accent-hi))", color: "#ffffff", whiteSpace: "nowrap", userSelect: "none" } });
+            chipTransBtn.onclick = function() { if (!chipInput.value.trim()) { chipInput.focus(); return; } _doChipTranslate(chipInput); };
             chipInputRow.appendChild(chipTransBtn);
             chipInput.onkeydown = function(ev) {
                 if (ev.key === "Enter") {
@@ -234,8 +234,15 @@ app.registerExtension({
             var _chipMode = localStorage.getItem("db_pt_chip_mode") === "1", _tlCache = {}, _tlMissing = {}, _tagColorCache = {}, _renderGen = 0, _hideLock = false;
             var _sentenceTags = {};  // 翻译生成的句子芯片
             var _weights = {};  // tag权重 {tag: 1.2}
-            chipInputRow.style.display = _chipMode ? "flex" : "none";
-            chipTransBtn.style.display = _chipMode ? "inline" : "none";
+            function _applyChipLayout() {
+                chipArea.style.display = _chipMode ? "flex" : "none";
+                chipInputRow.style.display = _chipMode ? "flex" : "none";
+                chipInputRow.classList.toggle("is-on", !!_chipMode);
+                chipTransBtn.style.display = _chipMode ? "inline-flex" : "none";
+                chipInput.style.display = _chipMode ? "block" : "none";
+                tagTextarea.style.display = _chipMode ? "none" : "flex";
+            }
+            _applyChipLayout();
             fetch("/danbooru_anima/tag_colors").then(function(r){return r.json();}).then(function(d){_tagColorCache=d||{};}).catch(function(){});
             var _mapperCatColors = {};
             fetch("/danbooru_anima/tag_mapper_cats").then(function(r){return r.json();}).then(function(cs){for(var ci=0;ci<cs.length;ci++){_mapperCatColors[cs[ci].v]=cs[ci].c;}}).catch(function(){});
@@ -271,7 +278,7 @@ app.registerExtension({
                 return b;
             }
             var _bx = 2;
-            var _chipModeBtn = _btn(0, _chipMode ? "⬡ 标签模式" : "📋 原文模式", "点击切换 原文 ↔ CHIP 芯片模式", "var(--anima-title)", "var(--anima-accent-soft)", function(){_chipMode=!_chipMode;localStorage.setItem("db_pt_chip_mode",_chipMode?"1":"0");chipArea.style.display=_chipMode?"flex":"none";chipInputRow.style.display=_chipMode?"flex":"none";chipTransBtn.style.display=_chipMode?"inline":"none";tagTextarea.style.display=_chipMode?"none":"flex";_chipModeBtn.textContent=_chipMode?"⬡ 标签模式":"📋 原文模式";if(window.animaPaintModeSwitch)window.animaPaintModeSwitch(_chipModeBtn,"chip",_chipMode);if(_chipMode)renderChips();}); if(window.animaPaintModeSwitch)window.animaPaintModeSwitch(_chipModeBtn,"chip",_chipMode); toolbar.appendChild(_chipModeBtn);
+            var _chipModeBtn = _btn(0, _chipMode ? "⬡ 标签模式" : "📋 原文模式", "点击切换 原文 ↔ CHIP 芯片模式", "var(--anima-title)", "var(--anima-accent-soft)", function(){_chipMode=!_chipMode;localStorage.setItem("db_pt_chip_mode",_chipMode?"1":"0");_applyChipLayout();_chipModeBtn.textContent=_chipMode?"⬡ 标签模式":"📋 原文模式";if(window.animaPaintModeSwitch)window.animaPaintModeSwitch(_chipModeBtn,"chip",_chipMode);if(_chipMode)renderChips();}); if(window.animaPaintModeSwitch)window.animaPaintModeSwitch(_chipModeBtn,"chip",_chipMode); toolbar.appendChild(_chipModeBtn);
             toolbar.appendChild(_btn(0, "📂 预制", "预制 tag", null, null, function(){openPresetPopup();}));
             toolbar.appendChild(_btn(0, "✨ 收藏", "收藏 tag", null, null, function(){openFavPopup();}));
             toolbar.appendChild(_btn(0, "A 搜索", "Animadex 搜索", null, null, function(){
@@ -2317,9 +2324,16 @@ var _pinApplyHeight = function(){
                     _paintModeFrame();
                 }
                 syncWidget();
-                if (_chipMode) { chipInputRow.style.display = "flex"; chipTransBtn.style.display = "inline"; chipArea.style.display = "flex"; chipInput.style.display = "block"; tagTextarea.style.display = "none"; renderChips(); }
+                _applyChipLayout(); if (_chipMode) renderChips();
                 collapseHiddenWidgets();
             }, 500);
+            var _prevPtResize = node.onResize;
+            node.onResize = function () {
+                var r;
+                if (typeof _prevPtResize === "function") r = _prevPtResize.apply(this, arguments);
+                if (_chipMode) _applyChipLayout();
+                return r;
+            };
             node.serialize_widgets = true;
             this.addDOMWidget("db_pt_ui","div",container,{onDraw:function(){}});
             collapseHiddenWidgets();
