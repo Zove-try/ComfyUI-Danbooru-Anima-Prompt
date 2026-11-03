@@ -154,78 +154,192 @@ app.registerExtension({
                 function _saveBaiduAppid(v) {
                     localStorage.setItem("db_trans_baidu_appid", (v || "").trim());
                 }
-                function _setModelCatalog(selectEl, items, pickedId) {
-                    selectEl._modelCatalog = items || [];
-                    if (pickedId) selectEl._modelPicked = pickedId;
-                    _renderModelOptions(selectEl);
-                }
-                function _renderModelOptions(selectEl) {
-                    var q = "";
-                    if (selectEl._modelSearch) q = (selectEl._modelSearch.value || "").trim().toLowerCase();
-                    var all = selectEl._modelCatalog || [];
-                    var shown = [];
-                    var i;
-                    for (i = 0; i < all.length; i++) {
-                        var it = all[i];
-                        if (!it || !it.id) continue;
-                        var hay = ((it.label || "") + " " + it.id).toLowerCase();
-                        if (!q || hay.indexOf(q) >= 0) shown.push(it);
+                function _modelHit(it, q) {
+                    var parts = (q || "").trim().toLowerCase().split(/\s+/);
+                    var raw = ((it.label || "") + " " + (it.id || "")).toLowerCase();
+                    var flat = raw.replace(/[\s_\-./]+/g, "");
+                    for (var i = 0; i < parts.length; i++) {
+                        var p = parts[i];
+                        if (!p) continue;
+                        var pf = p.replace(/[\s_\-./]+/g, "");
+                        if (raw.indexOf(p) < 0 && (!pf || flat.indexOf(pf) < 0)) return false;
                     }
-                    var picked = selectEl._modelPicked || "";
-                    selectEl.innerHTML = "";
-                    if (!all.length) {
-                        var wait = document.createElement("option");
-                        wait.value = "";
-                        wait.textContent = "请先获取模型";
-                        selectEl.appendChild(wait);
-                    } else if (!shown.length) {
-                        var none = document.createElement("option");
-                        none.value = "";
-                        none.textContent = "没有匹配的模型";
-                        selectEl.appendChild(none);
-                    } else {
-                        var found = false;
-                        for (i = 0; i < shown.length; i++) if (shown[i].id === picked) found = true;
-                        if (!found) {
-                            var hint = document.createElement("option");
-                            hint.value = "";
-                            hint.textContent = "从 " + shown.length + " 个结果里选";
-                            selectEl.appendChild(hint);
-                        }
-                        for (i = 0; i < shown.length; i++) {
-                            var op = document.createElement("option");
-                            op.value = shown[i].id;
-                            op.textContent = shown[i].label || shown[i].id;
-                            selectEl.appendChild(op);
-                        }
-                        selectEl.value = found ? picked : "";
-                    }
-                    if (selectEl._modelCount) selectEl._modelCount.textContent = all.length ? (shown.length + " / " + all.length) : "";
-                    if (selectEl._modelCurrentEl) selectEl._modelCurrentEl.textContent = picked ? ("当前使用：" + picked) : "当前使用：还没选";
+                    return true;
                 }
-                function _attachModelFilter(selectEl) {
-                    var searchRow = document.createElement("div");
-                    searchRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;";
-                    var lab = document.createElement("span");
-                    lab.textContent = "搜索";
-                    lab.style.cssText = "color:var(--anima-mute);font-size:12px;white-space:nowrap;";
-                    var inp = document.createElement("input");
-                    inp.type = "search";
-                    inp.placeholder = "在已获取的模型里筛选";
-                    inp.autocomplete = "off";
-                    inp.style.cssText = "flex:1;padding:4px 6px;border:1px solid var(--anima-line);border-radius:4px;background:var(--anima-bg);color:#e0e0e0;font-size:12px;outline:none;color-scheme:dark;";
+                function _setModelCatalog(picker, items, pickedId) {
+                    picker._modelCatalog = items || [];
+                    picker._modelPicked = pickedId || "";
+                    if (picker._syncModelPicker) picker._syncModelPicker();
+                }
+                function _createModelPicker() {
+                    if (!document.getElementById("anima-model-menu-css")) {
+                        var st = document.createElement("style");
+                        st.id = "anima-model-menu-css";
+                        st.textContent = ".anima-model-face{position:relative;user-select:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:22px;box-sizing:border-box;}.anima-model-face:after{content:'\\25BE';position:absolute;right:8px;top:50%;transform:translateY(-50%);color:var(--anima-mute);pointer-events:none;font-size:11px;}.anima-model-menu{display:none;position:fixed;z-index:100002;flex-direction:column;background:var(--anima-bg-deep,#161616);border:1px solid var(--anima-line,#444);border-radius:6px;box-shadow:0 10px 28px rgba(0,0,0,.55);overflow:hidden;}.anima-model-menu.is-open{display:flex;}.anima-model-head{display:flex;align-items:center;flex:0 0 auto;border-bottom:1px solid var(--anima-line,#444);background:#1c1c1c;}.anima-model-head input{flex:1;min-width:0;border:none;background:transparent;color:#eee;padding:8px 10px;font-size:13px;outline:none;color-scheme:dark;}.anima-model-count{flex:0 0 auto;padding:0 10px;color:var(--anima-mute);font-size:11px;white-space:nowrap;}.anima-model-list{overflow:auto;flex:1 1 auto;min-height:0;}.anima-model-opt{padding:7px 10px;cursor:pointer;font-size:12px;line-height:1.35;color:#e6e6e6;word-break:break-all;}.anima-model-opt:hover{background:rgba(var(--anima-accent-rgb),0.22);}.anima-model-opt.is-current{background:rgba(var(--anima-accent-rgb),0.35);}.anima-model-empty{padding:10px;color:var(--anima-mute);font-size:12px;}";
+                        document.head.appendChild(st);
+                    }
+                    var face = document.createElement("div");
+                    face.className = "anima-model-face";
+                    face.style.cssText = selStyle;
+                    face.style.position = "relative";
+                    face.style.paddingRight = "22px";
+                    face.style.minWidth = "0";
+                    face.tabIndex = 0;
+                    var panel = document.createElement("div");
+                    panel.className = "anima-model-menu";
+                    var head = document.createElement("div");
+                    head.className = "anima-model-head";
+                    var search = document.createElement("input");
+                    search.type = "text";
+                    search.placeholder = "搜索模型，例如 GPT";
+                    search.autocomplete = "off";
                     var count = document.createElement("span");
-                    count.style.cssText = "color:var(--anima-mute);font-size:11px;white-space:nowrap;min-width:72px;text-align:right;";
-                    inp.addEventListener("input", function(){ _renderModelOptions(selectEl); });
-                    searchRow.appendChild(lab);
-                    searchRow.appendChild(inp);
-                    searchRow.appendChild(count);
-                    var current = document.createElement("div");
-                    current.style.cssText = "margin:-2px 0 8px;color:var(--anima-mute);font-size:11px;line-height:1.4;";
-                    selectEl._modelSearch = inp;
-                    selectEl._modelCount = count;
-                    selectEl._modelCurrentEl = current;
-                    return { searchRow: searchRow, currentRow: current };
+                    count.className = "anima-model-count";
+                    head.appendChild(search);
+                    head.appendChild(count);
+                    var list = document.createElement("div");
+                    list.className = "anima-model-list";
+                    panel.appendChild(head);
+                    panel.appendChild(list);
+                    face._panel = panel;
+                    face._modelCatalog = [];
+                    face._modelPicked = "";
+                    face._open = false;
+                    face._onChange = null;
+                    Object.defineProperty(face, "value", {
+                        configurable: true,
+                        get: function(){ return face._modelPicked || ""; },
+                        set: function(v){ face._modelPicked = v || ""; face._syncModelPicker(); }
+                    });
+                    function paint() {
+                        var id = face._modelPicked || "";
+                        var text = id;
+                        if (!id) text = (face._modelCatalog && face._modelCatalog.length) ? "点开后搜索模型" : "请先获取模型";
+                        else {
+                            var all = face._modelCatalog || [];
+                            for (var i = 0; i < all.length; i++) if (all[i] && all[i].id === id && all[i].label) { text = all[i].label; break; }
+                        }
+                        face.textContent = text;
+                        face.title = id || text;
+                    }
+                    function renderList(scrollCurrent) {
+                        var all = face._modelCatalog || [];
+                        var q = search.value || "";
+                        var shown = 0;
+                        var total = 0;
+                        var currentEl = null;
+                        list.innerHTML = "";
+                        var frag = document.createDocumentFragment();
+                        for (var i = 0; i < all.length; i++) {
+                            var it = all[i];
+                            if (!it || !it.id) continue;
+                            total++;
+                            if (!_modelHit(it, q)) continue;
+                            shown++;
+                            var row = document.createElement("div");
+                            row.className = "anima-model-opt";
+                            row.setAttribute("data-id", it.id);
+                            row.textContent = it.label || it.id;
+                            row.title = it.id;
+                            if (it.id === face._modelPicked) {
+                                row.classList.add("is-current");
+                                currentEl = row;
+                            }
+                            (function(id){
+                                row.addEventListener("mousedown", function(e){
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    face._modelPicked = id;
+                                    paint();
+                                    closeMenu();
+                                    if (face._onChange) face._onChange();
+                                });
+                            })(it.id);
+                            frag.appendChild(row);
+                        }
+                        if (!shown) {
+                            var empty = document.createElement("div");
+                            empty.className = "anima-model-empty";
+                            empty.textContent = total ? "没有含这些词的模型" : "请先获取模型";
+                            frag.appendChild(empty);
+                        }
+                        list.appendChild(frag);
+                        count.textContent = total ? (shown + " / " + total) : "";
+                        if (scrollCurrent && currentEl) currentEl.scrollIntoView({ block: "nearest" });
+                    }
+                    function place() {
+                        var rect = face.getBoundingClientRect();
+                        var width = Math.max(rect.width, 360);
+                        var left = rect.left;
+                        if (left + width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - 8 - width);
+                        var spaceBelow = window.innerHeight - rect.bottom - 8;
+                        var spaceAbove = rect.top - 8;
+                        var maxH = 320;
+                        var top;
+                        if (spaceBelow >= 180 || spaceBelow >= spaceAbove) {
+                            top = rect.bottom + 4;
+                            maxH = Math.min(320, Math.max(160, spaceBelow - 4));
+                        } else {
+                            maxH = Math.min(320, Math.max(160, spaceAbove - 4));
+                            top = Math.max(8, rect.top - 4 - maxH);
+                        }
+                        panel.style.left = left + "px";
+                        panel.style.top = top + "px";
+                        panel.style.width = width + "px";
+                        panel.style.maxHeight = maxH + "px";
+                    }
+                    function openMenu() {
+                        if (window._animaModelMenu && window._animaModelMenu !== face && window._animaModelMenu._closeModelMenu) window._animaModelMenu._closeModelMenu();
+                        window._animaModelMenu = face;
+                        search.value = "";
+                        renderList(true);
+                        if (!panel.parentNode) document.body.appendChild(panel);
+                        panel.classList.add("is-open");
+                        face._open = true;
+                        place();
+                        setTimeout(function(){ search.focus(); }, 0);
+                    }
+                    function closeMenu() {
+                        face._open = false;
+                        panel.classList.remove("is-open");
+                        if (panel.parentNode) panel.parentNode.removeChild(panel);
+                        if (window._animaModelMenu === face) window._animaModelMenu = null;
+                    }
+                    face._closeModelMenu = closeMenu;
+                    face._place = place;
+                    face._clearModelQuery = function(){ search.value = ""; };
+                    face._syncModelPicker = function(){ paint(); if (face._open) renderList(false); };
+                    face.addEventListener("click", function(e){
+                        e.stopPropagation();
+                        if (face._open) closeMenu();
+                        else openMenu();
+                    });
+                    search.addEventListener("mousedown", function(e){ e.stopPropagation(); });
+                    search.addEventListener("click", function(e){ e.stopPropagation(); });
+                    search.addEventListener("input", function(){ renderList(false); });
+                    search.addEventListener("keydown", function(e){
+                        e.stopPropagation();
+                        if (e.key === "Escape") { e.preventDefault(); closeMenu(); return; }
+                        if (e.key === "Enter") {
+                            var rows = list.querySelectorAll(".anima-model-opt");
+                            if (rows.length === 1) {
+                                e.preventDefault();
+                                face._modelPicked = rows[0].getAttribute("data-id") || "";
+                                paint();
+                                closeMenu();
+                                if (face._onChange) face._onChange();
+                            }
+                        }
+                    });
+                    if (box && !box._modelMenuScroll) {
+                        box._modelMenuScroll = true;
+                        box.addEventListener("scroll", function(){
+                            var m = window._animaModelMenu;
+                            if (m && m._open && m._place) m._place();
+                        });
+                    }
+                    paint();
+                    return face;
                 }
                 async function _pullModels(baseUrl, selectEl, onPick) {
                     var key = (_akInp && _akInp.value || "").trim();
@@ -245,11 +359,12 @@ app.registerExtension({
                         var keep = selectEl._modelPicked || "";
                         var keepOk = false;
                         for (var ki = 0; ki < items.length; ki++) if (items[ki].id === keep) keepOk = true;
-                        if (selectEl._modelSearch) selectEl._modelSearch.value = "";
+                        if (selectEl._closeModelMenu) selectEl._closeModelMenu();
+                        if (selectEl._clearModelQuery) selectEl._clearModelQuery();
                         var chosen = keepOk ? keep : items[0].id;
                         _setModelCatalog(selectEl, items, chosen);
                         if (onPick) onPick(chosen);
-                        alert("已获取 " + items.length + " 个模型。模型很多时，用上面的搜索框筛选。");
+                        alert("已获取 " + items.length + " 个模型。点开下拉框，在弹出的列表里输入关键词筛选。");
                     } catch (e) {
                         alert("获取模型失败: " + (e && e.message ? e.message : e));
                     }
@@ -258,6 +373,28 @@ app.registerExtension({
                 var ov = document.createElement("div");
                 ov.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;background:transparent;z-index:100000;display:flex;align-items:center;justify-content:center;";
                 ov.onclick = function(e){ if(e.target===ov) ov.remove(); };
+                (function(){
+                    var _down = function(e){
+                        var m = window._animaModelMenu;
+                        if (!m || !m._open) return;
+                        if (m.contains(e.target) || (m._panel && m._panel.contains(e.target))) return;
+                        m._closeModelMenu();
+                    };
+                    var _move = function(){
+                        var m = window._animaModelMenu;
+                        if (m && m._open && m._place) m._place();
+                    };
+                    document.addEventListener("mousedown", _down, true);
+                    window.addEventListener("resize", _move);
+                    var _rawRemove = ov.remove.bind(ov);
+                    ov.remove = function(){
+                        document.removeEventListener("mousedown", _down, true);
+                        window.removeEventListener("resize", _move);
+                        var m = window._animaModelMenu;
+                        if (m && m._closeModelMenu) m._closeModelMenu();
+                        _rawRemove();
+                    };
+                })();
                 var box = document.createElement("div");
                 box.id = "db-top-popup";
                 var _popStyle = document.createElement("style");
@@ -898,21 +1035,17 @@ app.registerExtension({
                 // DeepSeek 模型子选
                 var dsDiv = document.createElement('div'); dsDiv.style.cssText = rowStyle;
                 dsDiv.innerHTML = '<span style="'+lblStyle+'">模型</span>';
-                var dsSel = document.createElement('select'); dsSel.style.cssText = selStyle;
+                var dsSel = _createModelPicker();
                 var _dsShown = window.animaDsModelId ? window.animaDsModelId(_dsm) : (_dsm || "deepseek-flash");
                 _setModelCatalog(dsSel, [{ id: _dsShown, label: _dsShown }], _dsShown);
-                dsSel.onchange = function(){ if (!dsSel.value) return; dsSel._modelPicked = dsSel.value; _dsm=dsSel.value; localStorage.setItem("db_ds_model",_dsm); localStorage.setItem("db_trans_ds_model",_dsm); _renderModelOptions(dsSel); };
+                dsSel._onChange = function(){ if (!dsSel.value) return; _dsm=dsSel.value; localStorage.setItem("db_ds_model",_dsm); localStorage.setItem("db_trans_ds_model",_dsm); };
                 dsDiv.appendChild(dsSel);
                 var dsFetch = document.createElement('span');
                 dsFetch.textContent = '获取模型';
                 dsFetch.style.cssText = 'padding:4px 8px;border-radius:4px;background:var(--anima-line);color:var(--anima-accent-soft);cursor:pointer;font-size:12px;white-space:nowrap;';
                 dsFetch.onclick = function(){ _pullModels('https://api.deepseek.com/v1', dsSel, function(id){ _dsm = id; localStorage.setItem('db_ds_model', id); localStorage.setItem('db_trans_ds_model', id); }); };
                 dsDiv.appendChild(dsFetch);
-                var dsFilter = _attachModelFilter(dsSel);
-                transBody.appendChild(dsFilter.searchRow);
                 transBody.appendChild(dsDiv);
-                transBody.appendChild(dsFilter.currentRow);
-                _renderModelOptions(dsSel);
                 var dsUrl = document.createElement('div');
                 dsUrl.textContent = '接口：https://api.deepseek.com/v1（官方地址，点获取模型看当前上架的模型）';
                 dsUrl.style.cssText = 'margin:-4px 0 8px;color:var(--anima-mute);font-size:11px;line-height:1.4;';
@@ -951,8 +1084,7 @@ app.registerExtension({
                 // Model 输入（自定义）
                 var mdDiv = document.createElement('div'); mdDiv.style.cssText = rowStyle;
                 mdDiv.innerHTML = '<span style="'+lblStyle+'">Model</span>';
-                var mdInp = document.createElement('select');
-                mdInp.style.cssText = selStyle;
+                var mdInp = _createModelPicker();
                 function _saveCustomModel(id) {
                     _tmodel = id || '';
                     localStorage.setItem("db_trans_model", _tmodel);
@@ -960,18 +1092,14 @@ app.registerExtension({
                 }
                 if (_tmodel) _setModelCatalog(mdInp, [{ id: _tmodel, label: _tmodel }], _tmodel);
                 else _setModelCatalog(mdInp, [], "");
-                mdInp.onchange = function(){ if (!mdInp.value) return; mdInp._modelPicked = mdInp.value; _saveCustomModel(mdInp.value); _renderModelOptions(mdInp); };
+                mdInp._onChange = function(){ if (!mdInp.value) return; _saveCustomModel(mdInp.value); };
                 mdDiv.appendChild(mdInp);
                 var mdFetch = document.createElement('span');
                 mdFetch.textContent = '获取模型';
                 mdFetch.style.cssText = 'padding:4px 8px;border-radius:4px;background:var(--anima-line);color:var(--anima-accent-soft);cursor:pointer;font-size:12px;white-space:nowrap;';
                 mdFetch.onclick = function(){ _pullModels((buInp.value || _turl || '').trim(), mdInp, _saveCustomModel); };
                 mdDiv.appendChild(mdFetch);
-                var mdFilter = _attachModelFilter(mdInp);
-                transBody.appendChild(mdFilter.searchRow);
                 transBody.appendChild(mdDiv);
-                transBody.appendChild(mdFilter.currentRow);
-                _renderModelOptions(mdInp);
 
                 // Base URL 输入（自定义）
                 var buDiv = document.createElement('div'); buDiv.style.cssText = rowStyle;
@@ -1189,19 +1317,16 @@ app.registerExtension({
                 _loadGCreds();
 
                 function _refreshTransUI(){
+                    if (window._animaModelMenu && window._animaModelMenu._closeModelMenu) window._animaModelMenu._closeModelMenu();
                     var p = _tp;
                     var llm = _baiduLlmOn();
                     freeDiv.style.display = p==='free'?'flex':'none';
                     bmDiv.style.display = p==='free'&&_tfm==='baidu'?'flex':'none';
                     dsDiv.style.display = p==='deepseek'?'flex':'none';
-                    dsFilter.searchRow.style.display = p==='deepseek'?'flex':'none';
-                    dsFilter.currentRow.style.display = p==='deepseek'?'block':'none';
                     dsUrl.style.display = p==='deepseek'?'block':'none';
                     akDiv.style.display = p==='free'&&_tfm==='google'?'none':'flex';
                     appDiv.style.display = llm ? 'flex' : 'none';
                     mdDiv.style.display = p==='custom'?'flex':'none';
-                    mdFilter.searchRow.style.display = p==='custom'?'flex':'none';
-                    mdFilter.currentRow.style.display = p==='custom'?'block':'none';
                     buDiv.style.display = p==='custom'?'flex':'none';
                     if (_akInp) {
                         if (llm) _akInp.placeholder = '百度大模型 API Key';
@@ -1216,10 +1341,10 @@ app.registerExtension({
                         hintDiv.innerHTML = '📌 百度翻译申请：<a href="https://fanyi-api.baidu.com" target="_blank" style="color:#ffd93d;">fanyi-api.baidu.com</a> → 开通通用翻译API（免费200万字符/月）→ 获取 APP ID 和密钥<br>👆 API Key 填写格式：<b>appid:密钥</b>（冒号分隔）';
                     } else if (p === 'deepseek') {
                         hintDiv.style.display = 'block';
-                        hintDiv.innerHTML = '填 DeepSeek API Key 后点「获取模型」。列表来自官网当前上架的模型。模型多的时候，用下拉框上面的搜索筛选。';
+                        hintDiv.innerHTML = '填 DeepSeek API Key 后点「获取模型」。点开模型下拉框，在弹出列表顶部输入关键词，例如 GPT，只留下名字里含这些词的模型。';
                     } else if (p === 'custom') {
                         hintDiv.style.display = 'block';
-                        hintDiv.innerHTML = '先填 Base URL 和 API Key，再点「获取模型」。中转站模型很多时，用下拉框上面的搜索框按名字筛选，再从结果里选。';
+                        hintDiv.innerHTML = '先填 Base URL 和 API Key，再点「获取模型」。点开模型下拉框，在弹出列表顶部输入关键词，例如 GPT，只留下名字里含这些词的模型。';
                     } else { hintDiv.style.display = 'none'; }
                 }
                 _loadTKey();
