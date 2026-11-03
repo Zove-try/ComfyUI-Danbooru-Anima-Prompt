@@ -1,0 +1,441 @@
+{
+  "DanbooruBrowser": {
+    "display_name": "Danbooru Browser",
+    "outputs": {
+      "0": {
+        "name": "image"
+      },
+      "1": {
+        "name": "All Tags"
+      },
+      "2": {
+        "name": "Quality/Meta Tags"
+      },
+      "3": {
+        "name": "Count Tags"
+      },
+      "4": {
+        "name": "Character Tags"
+      },
+      "5": {
+        "name": "Series Tags"
+      },
+      "6": {
+        "name": "Artist Tags"
+      },
+      "7": {
+        "name": "General Tags"
+      },
+      "8": {
+        "name": "Unclassified Tags"
+      }
+    }
+  },
+  "GelbooruBrowser": {
+    "display_name": "Gelbooru Browser",
+    "inputs": {
+      "来自AnimaDex": {
+        "name": "From AnimaDex"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "image"
+      },
+      "1": {
+        "name": "All Tags"
+      },
+      "2": {
+        "name": "Quality/Meta Tags"
+      },
+      "3": {
+        "name": "Count Tags"
+      },
+      "4": {
+        "name": "Character Tags"
+      },
+      "5": {
+        "name": "Series Tags"
+      },
+      "6": {
+        "name": "Artist Tags"
+      },
+      "7": {
+        "name": "General Tags"
+      },
+      "8": {
+        "name": "Unclassified Tags"
+      }
+    }
+  },
+  "AnimaDexBrowser": {
+    "display_name": "AnimaDex Browser"
+  },
+  "DanbooruTagClassifier": {
+    "display_name": "Tag Classifier",
+    "inputs": {
+      "原始标签": {
+        "name": "Raw tags"
+      },
+      "分类模式": {
+        "name": "Source",
+        "options": {
+          "D站模式": "Danbooru",
+          "G站模式": "Gelbooru"
+        }
+      },
+      "启用API查询": {
+        "name": "Use API lookup"
+      },
+      "使用本地数据库": {
+        "name": "Use local DB"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "All Tags"
+      },
+      "1": {
+        "name": "Quality/Meta Tags"
+      },
+      "2": {
+        "name": "Count Tags"
+      },
+      "3": {
+        "name": "Character Tags"
+      },
+      "4": {
+        "name": "Series Tags"
+      },
+      "5": {
+        "name": "Artist Tags"
+      },
+      "6": {
+        "name": "Body Tags"
+      },
+      "7": {
+        "name": "Clothing Tags"
+      },
+      "8": {
+        "name": "Pose Tags"
+      },
+      "9": {
+        "name": "Expression Tags"
+      },
+      "10": {
+        "name": "Background Tags"
+      },
+      "11": {
+        "name": "Accessory Tags"
+      },
+      "12": {
+        "name": "Other Tags"
+      },
+      "13": {
+        "name": "Unclassified Tags"
+      }
+    }
+  },
+  "TagMapper": {
+    "display_name": "Tag Mapper",
+    "inputs": {
+      "标签列表": {
+        "name": "Tag list"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Status"
+      },
+      "1": {
+        "name": "All mappings"
+      },
+      "2": {
+        "name": "Still unclassified"
+      }
+    }
+  },
+  "AnimaPromptConverter": {
+    "display_name": "Prompt Combiner",
+    "inputs": {
+      "quality_meta_tags": {
+        "name": "Quality / meta"
+      },
+      "time_tag": {
+        "name": "Time"
+      },
+      "safety_tag": {
+        "name": "Safety",
+        "options": {
+          "(无)": "(none)"
+        }
+      },
+      "meta_tags": {
+        "name": "Meta tags"
+      },
+      "count_tags": {
+        "name": "Count"
+      },
+      "character_tags": {
+        "name": "Character"
+      },
+      "series_tags": {
+        "name": "Series"
+      },
+      "artist_tags": {
+        "name": "Artist"
+      },
+      "general_tags": {
+        "name": "General"
+      },
+      "model_type": {
+        "name": "Model"
+      },
+      "underscore_mode": {
+        "name": "Underscores",
+        "options": {
+          "保留下划线": "Keep underscores",
+          "转空格": "Convert to spaces"
+        }
+      },
+      "escape_parens": {
+        "name": "Escape ()"
+      },
+      "artist_at_prefix": {
+        "name": "Force @ on artists"
+      },
+      "separator": {
+        "name": "Separator"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "prompt"
+      }
+    }
+  },
+  "AnimaPromptCreator": {
+    "display_name": "Prompt Composer",
+    "outputs": {
+      "0": {
+        "name": "prompt"
+      }
+    }
+  },
+  "NewbiePromptCreator": {
+    "display_name": "NewBie Prompt Composer",
+    "outputs": {
+      "0": {
+        "name": "prompt"
+      }
+    }
+  },
+  "AnimaRandomPrompt": {
+    "display_name": "Random Prompt",
+    "outputs": {
+      "0": {
+        "name": "prompt"
+      }
+    }
+  },
+  "DanbooruText": {
+    "display_name": "Text",
+    "outputs": {
+      "0": {
+        "name": "text"
+      }
+    }
+  },
+  "DanbooruTextConcat": {
+    "display_name": "Text Concat",
+    "inputs": {
+      "separator": {
+        "name": "Separator",
+        "options": {
+          "逗号+空格": "comma + space",
+          "中文逗号+空格": "Chinese comma + space",
+          "仅逗号": "comma only",
+          "空格": "space",
+          "换行": "newline",
+          "逗号+换行": "comma + newline",
+          "分号+空格": "semicolon + space",
+          "竖线+空格": "pipe + space",
+          "无分隔符": "none"
+        }
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "text"
+      }
+    }
+  },
+  "DanbooruTextAdvanced": {
+    "display_name": "Text (fuzzy search)",
+    "outputs": {
+      "0": {
+        "name": "text"
+      }
+    }
+  },
+  "DanbooruTextPassthrough": {
+    "display_name": "Text (passthrough)",
+    "inputs": {
+      "prompt_text": {
+        "name": "Prompt text"
+      },
+      "use_input_text": {
+        "name": "Use input"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "text"
+      }
+    }
+  },
+  "DanbooruTagDedup": {
+    "display_name": "Tag dedupe",
+    "outputs": {
+      "0": {
+        "name": "tags"
+      }
+    }
+  },
+  "DanbooruTagPreview": {
+    "display_name": "Tag preview",
+    "outputs": {
+      "0": {
+        "name": "tags"
+      }
+    }
+  },
+  "AnimaImageScaleByAspectRatio": {
+    "display_name": "Anima: Scale by Aspect Ratio",
+    "inputs": {
+      "宽高比": {
+        "name": "Aspect ratio",
+        "options": {
+          "原始": "original",
+          "自定义": "custom",
+          "1:1": "1:1",
+          "3:2": "3:2",
+          "4:3": "4:3",
+          "16:9": "16:9",
+          "2:3": "2:3",
+          "3:4": "3:4",
+          "9:16": "9:16"
+        }
+      },
+      "比例宽度": {
+        "name": "Proportional width"
+      },
+      "比例高度": {
+        "name": "Proportional height"
+      },
+      "适应": {
+        "name": "Fit",
+        "options": {
+          "信箱补边": "letterbox",
+          "中心裁剪": "crop",
+          "拉伸填充": "fill"
+        }
+      },
+      "方法": {
+        "name": "Method",
+        "options": {
+          "Lanczos": "Lanczos",
+          "双三次": "bicubic",
+          "Hamming": "Hamming",
+          "双线性": "bilinear",
+          "Box": "Box",
+          "最近邻": "nearest"
+        }
+      },
+      "对齐到倍数": {
+        "name": "Round to multiple",
+        "options": {
+          "8": "8",
+          "16": "16",
+          "32": "32",
+          "64": "64",
+          "128": "128",
+          "256": "256",
+          "512": "512",
+          "无": "None"
+        }
+      },
+      "缩放至边": {
+        "name": "Scale to side",
+        "options": {
+          "无": "None",
+          "最长边": "longest",
+          "最短边": "shortest",
+          "宽度": "width",
+          "高度": "height",
+          "总像素(千像素)": "total pixels (kpx)"
+        }
+      },
+      "缩放至长度": {
+        "name": "Scale to length"
+      },
+      "背景颜色": {
+        "name": "Background color"
+      },
+      "image": {
+        "name": "Image"
+      },
+      "mask": {
+        "name": "Mask"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Image"
+      },
+      "1": {
+        "name": "Mask"
+      },
+      "2": {
+        "name": "Original size"
+      },
+      "3": {
+        "name": "Width"
+      },
+      "4": {
+        "name": "Height"
+      }
+    }
+  },
+  "AnimaResolutionSelector": {
+    "display_name": "Anima Resolution Selector",
+    "inputs": {
+      "使用自定义分辨率": {
+        "name": "Use custom resolution"
+      },
+      "分辨率": {
+        "name": "Resolution"
+      },
+      "自定义宽度": {
+        "name": "Custom width"
+      },
+      "自定义高度": {
+        "name": "Custom height"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Width"
+      },
+      "1": {
+        "name": "Height"
+      }
+    }
+  },
+  "AnimaGroupIgnoreManager": {
+    "display_name": "Group Ignore Manager"
+  },
+  "AnimaGroupMuteManager": {
+    "display_name": "Group Mute Manager"
+  }
+}

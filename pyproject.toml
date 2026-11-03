@@ -1,0 +1,28 @@
+[project]
+name = "danbooru-anima-prompt"
+version = "1.0.0"
+description = "Browse Danbooru and Gelbooru, classify tags, and compose Anima, Noob, Aesthetic, and NewBie prompts in ComfyUI."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.28.0",
+    "Pillow>=9.0.0",
+    "numpy>=1.22.0",
+    "cloudscraper>=1.2.65",
+    "curl_cffi>=0.7.0",
+    "sentence-transformers>=2.3.0",
+    "pandas>=1.5.0",
+    "safetensors>=0.3.0",
+    "pyarrow>=14.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Zove-try/ComfyUI-Danbooru-Anima-Prompt"
+Repository = "https://github.com/Zove-try/ComfyUI-Danbooru-Anima-Prompt"
+Issues = "https://github.com/Zove-try/ComfyUI-Danbooru-Anima-Prompt/issues"
+
+[tool.comfy]
+PublisherId = "zove-try"
+DisplayName = "Danbooru Anima Prompt"
+Icon = "https://raw.githubusercontent.com/Zove-try/ComfyUI-Danbooru-Anima-Prompt/main/assets/icon.png"

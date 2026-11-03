@@ -1,0 +1,441 @@
+{
+  "DanbooruBrowser": {
+    "display_name": "D站浏览器 (Danbooru Browser)",
+    "outputs": {
+      "0": {
+        "name": "image"
+      },
+      "1": {
+        "name": "全部标签"
+      },
+      "2": {
+        "name": "质量/元标签"
+      },
+      "3": {
+        "name": "数量标签"
+      },
+      "4": {
+        "name": "角色标签"
+      },
+      "5": {
+        "name": "系列标签"
+      },
+      "6": {
+        "name": "画师标签"
+      },
+      "7": {
+        "name": "常规标签"
+      },
+      "8": {
+        "name": "未分类标签"
+      }
+    }
+  },
+  "GelbooruBrowser": {
+    "display_name": "G站浏览器 (Gelbooru Browser)",
+    "inputs": {
+      "来自AnimaDex": {
+        "name": "来自AnimaDex"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "image"
+      },
+      "1": {
+        "name": "全部标签"
+      },
+      "2": {
+        "name": "质量/元标签"
+      },
+      "3": {
+        "name": "数量标签"
+      },
+      "4": {
+        "name": "角色标签"
+      },
+      "5": {
+        "name": "系列标签"
+      },
+      "6": {
+        "name": "画师标签"
+      },
+      "7": {
+        "name": "常规标签"
+      },
+      "8": {
+        "name": "未分类标签"
+      }
+    }
+  },
+  "AnimaDexBrowser": {
+    "display_name": "AnimaDex 浏览器 (AnimaDex Browser)"
+  },
+  "DanbooruTagClassifier": {
+    "display_name": "🏷 标签分类器 (Tag Classifier)",
+    "inputs": {
+      "原始标签": {
+        "name": "原始标签"
+      },
+      "分类模式": {
+        "name": "分类模式",
+        "options": {
+          "D站模式": "D站模式",
+          "G站模式": "G站模式"
+        }
+      },
+      "启用API查询": {
+        "name": "启用API查询"
+      },
+      "使用本地数据库": {
+        "name": "使用本地数据库"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "全部标签"
+      },
+      "1": {
+        "name": "质量/元标签"
+      },
+      "2": {
+        "name": "计数标签"
+      },
+      "3": {
+        "name": "角色标签"
+      },
+      "4": {
+        "name": "系列标签"
+      },
+      "5": {
+        "name": "画师标签"
+      },
+      "6": {
+        "name": "身体特征标签"
+      },
+      "7": {
+        "name": "服装标签"
+      },
+      "8": {
+        "name": "姿势标签"
+      },
+      "9": {
+        "name": "表情标签"
+      },
+      "10": {
+        "name": "背景标签"
+      },
+      "11": {
+        "name": "配饰标签"
+      },
+      "12": {
+        "name": "其他标签"
+      },
+      "13": {
+        "name": "未分类标签"
+      }
+    }
+  },
+  "TagMapper": {
+    "display_name": "标签映射器 (Tag Mapper)",
+    "inputs": {
+      "标签列表": {
+        "name": "标签列表"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "状态"
+      },
+      "1": {
+        "name": "全部映射"
+      },
+      "2": {
+        "name": "剩余未分类"
+      }
+    }
+  },
+  "AnimaPromptConverter": {
+    "display_name": "提示词组合器",
+    "inputs": {
+      "quality_meta_tags": {
+        "name": "quality_meta_tags"
+      },
+      "time_tag": {
+        "name": "time_tag"
+      },
+      "safety_tag": {
+        "name": "safety_tag",
+        "options": {
+          "(无)": "(无)"
+        }
+      },
+      "meta_tags": {
+        "name": "meta_tags"
+      },
+      "count_tags": {
+        "name": "count_tags"
+      },
+      "character_tags": {
+        "name": "character_tags"
+      },
+      "series_tags": {
+        "name": "series_tags"
+      },
+      "artist_tags": {
+        "name": "artist_tags"
+      },
+      "general_tags": {
+        "name": "general_tags"
+      },
+      "model_type": {
+        "name": "model_type"
+      },
+      "underscore_mode": {
+        "name": "underscore_mode",
+        "options": {
+          "保留下划线": "保留下划线",
+          "转空格": "转空格"
+        }
+      },
+      "escape_parens": {
+        "name": "escape_parens"
+      },
+      "artist_at_prefix": {
+        "name": "artist_at_prefix"
+      },
+      "separator": {
+        "name": "separator"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "prompt"
+      }
+    }
+  },
+  "AnimaPromptCreator": {
+    "display_name": "✏️ 提示词创作器",
+    "outputs": {
+      "0": {
+        "name": "prompt"
+      }
+    }
+  },
+  "NewbiePromptCreator": {
+    "display_name": "🎨 NewBie 提示词创作器",
+    "outputs": {
+      "0": {
+        "name": "prompt"
+      }
+    }
+  },
+  "AnimaRandomPrompt": {
+    "display_name": "🎲 随机提示词 (Random Prompt)",
+    "outputs": {
+      "0": {
+        "name": "prompt"
+      }
+    }
+  },
+  "DanbooruText": {
+    "display_name": "文本",
+    "outputs": {
+      "0": {
+        "name": "text"
+      }
+    }
+  },
+  "DanbooruTextConcat": {
+    "display_name": "文本联结",
+    "inputs": {
+      "separator": {
+        "name": "separator",
+        "options": {
+          "逗号+空格": "逗号+空格",
+          "中文逗号+空格": "中文逗号+空格",
+          "仅逗号": "仅逗号",
+          "空格": "空格",
+          "换行": "换行",
+          "逗号+换行": "逗号+换行",
+          "分号+空格": "分号+空格",
+          "竖线+空格": "竖线+空格",
+          "无分隔符": "无分隔符"
+        }
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "text"
+      }
+    }
+  },
+  "DanbooruTextAdvanced": {
+    "display_name": "文本（模糊搜索）",
+    "outputs": {
+      "0": {
+        "name": "text"
+      }
+    }
+  },
+  "DanbooruTextPassthrough": {
+    "display_name": "文本（透传）",
+    "inputs": {
+      "prompt_text": {
+        "name": "prompt_text"
+      },
+      "use_input_text": {
+        "name": "use_input_text"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "text"
+      }
+    }
+  },
+  "DanbooruTagDedup": {
+    "display_name": "tag去重",
+    "outputs": {
+      "0": {
+        "name": "tags"
+      }
+    }
+  },
+  "DanbooruTagPreview": {
+    "display_name": "标签预览",
+    "outputs": {
+      "0": {
+        "name": "tags"
+      }
+    }
+  },
+  "AnimaImageScaleByAspectRatio": {
+    "display_name": "Anima：按宽高比缩放",
+    "inputs": {
+      "宽高比": {
+        "name": "宽高比",
+        "options": {
+          "原始": "原始",
+          "自定义": "自定义",
+          "1:1": "1:1",
+          "3:2": "3:2",
+          "4:3": "4:3",
+          "16:9": "16:9",
+          "2:3": "2:3",
+          "3:4": "3:4",
+          "9:16": "9:16"
+        }
+      },
+      "比例宽度": {
+        "name": "比例宽度"
+      },
+      "比例高度": {
+        "name": "比例高度"
+      },
+      "适应": {
+        "name": "适应",
+        "options": {
+          "信箱补边": "信箱补边",
+          "中心裁剪": "中心裁剪",
+          "拉伸填充": "拉伸填充"
+        }
+      },
+      "方法": {
+        "name": "方法",
+        "options": {
+          "Lanczos": "Lanczos",
+          "双三次": "双三次",
+          "Hamming": "Hamming",
+          "双线性": "双线性",
+          "Box": "Box",
+          "最近邻": "最近邻"
+        }
+      },
+      "对齐到倍数": {
+        "name": "对齐到倍数",
+        "options": {
+          "8": "8",
+          "16": "16",
+          "32": "32",
+          "64": "64",
+          "128": "128",
+          "256": "256",
+          "512": "512",
+          "无": "无"
+        }
+      },
+      "缩放至边": {
+        "name": "缩放至边",
+        "options": {
+          "无": "无",
+          "最长边": "最长边",
+          "最短边": "最短边",
+          "宽度": "宽度",
+          "高度": "高度",
+          "总像素(千像素)": "总像素(千像素)"
+        }
+      },
+      "缩放至长度": {
+        "name": "缩放至长度"
+      },
+      "背景颜色": {
+        "name": "背景颜色"
+      },
+      "image": {
+        "name": "图像"
+      },
+      "mask": {
+        "name": "遮罩"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "图像"
+      },
+      "1": {
+        "name": "遮罩"
+      },
+      "2": {
+        "name": "原始尺寸"
+      },
+      "3": {
+        "name": "宽度"
+      },
+      "4": {
+        "name": "高度"
+      }
+    }
+  },
+  "AnimaResolutionSelector": {
+    "display_name": "Anima 分辨率选择器",
+    "inputs": {
+      "使用自定义分辨率": {
+        "name": "使用自定义分辨率"
+      },
+      "分辨率": {
+        "name": "分辨率"
+      },
+      "自定义宽度": {
+        "name": "自定义宽度"
+      },
+      "自定义高度": {
+        "name": "自定义高度"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "宽度"
+      },
+      "1": {
+        "name": "高度"
+      }
+    }
+  },
+  "AnimaGroupIgnoreManager": {
+    "display_name": "组忽略管理"
+  },
+  "AnimaGroupMuteManager": {
+    "display_name": "组禁用管理"
+  }
+}

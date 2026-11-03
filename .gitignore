@@ -1,0 +1,30 @@
+# 本机账号和登录凭据
+settings.json
+py/donmai_cf.json
+py/donmai_cf.json.tmp
+
+# 使用中生成的个人数据
+user_data.json
+favorites.json
+gelbooru_favorites.json
+danbooru_favorites.json
+prompt_favorites.json
+output_image_favorites.json
+output_image_ratings.json
+output_viewer_trash.json
+output_fav_backup.json
+output_artist_index.json
+py/user_translations.json
+py/user_tag_mappings.json
+py/user_tag_patterns.json
+py/persist_cn.json
+py/cloud_translations.json
+py/preset_user_data.json
+
+# 运行缓存
+__pycache__/
+*.pyc
+py/tags_embedding/
+
+# 预设标签缩略图不随仓库分发，用户可在界面里自己设置
+web/thumbs/*
