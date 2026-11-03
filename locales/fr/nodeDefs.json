@@ -313,80 +313,21 @@
   "AnimaImageScaleByAspectRatio": {
     "display_name": "Anima: Scale by Aspect Ratio",
     "inputs": {
-      "宽高比": {
-        "name": "Aspect ratio",
+      "缩放至": {
+        "name": "Côté cible",
         "options": {
-          "原始": "original",
-          "自定义": "custom",
-          "1:1": "1:1",
-          "3:2": "3:2",
-          "4:3": "4:3",
-          "16:9": "16:9",
-          "2:3": "2:3",
-          "3:4": "3:4",
-          "9:16": "9:16"
-        }
-      },
-      "比例宽度": {
-        "name": "Proportional width"
-      },
-      "比例高度": {
-        "name": "Proportional height"
-      },
-      "适应": {
-        "name": "Fit",
-        "options": {
-          "信箱补边": "letterbox",
-          "中心裁剪": "crop",
-          "拉伸填充": "fill"
-        }
-      },
-      "方法": {
-        "name": "Method",
-        "options": {
-          "Lanczos": "Lanczos",
-          "双三次": "bicubic",
-          "Hamming": "Hamming",
-          "双线性": "bilinear",
-          "Box": "Box",
-          "最近邻": "nearest"
-        }
-      },
-      "对齐到倍数": {
-        "name": "Round to multiple",
-        "options": {
-          "8": "8",
-          "16": "16",
-          "32": "32",
-          "64": "64",
-          "128": "128",
-          "256": "256",
-          "512": "512",
-          "无": "None"
-        }
-      },
-      "缩放至边": {
-        "name": "Scale to side",
-        "options": {
-          "无": "None",
-          "最长边": "longest",
-          "最短边": "shortest",
-          "宽度": "width",
-          "高度": "height",
-          "总像素(千像素)": "total pixels (kpx)"
+          "最长边": "côté long",
+          "最短边": "côté court"
         }
       },
       "缩放至长度": {
-        "name": "Scale to length"
-      },
-      "背景颜色": {
-        "name": "Background color"
+        "name": "Longueur"
       },
       "image": {
         "name": "Image"
       },
       "mask": {
-        "name": "Mask"
+        "name": "Masque"
       }
     },
     "outputs": {
