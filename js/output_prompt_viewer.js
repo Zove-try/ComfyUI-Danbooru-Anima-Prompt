@@ -133,9 +133,9 @@
     var _popLayLoaded = false;
     var _popFree = { left: 80, top: 72, w: 640, h: 440 };
     var _snapKind = "";
-    var _insDock = "bottom";
+    var _insDock = "left";
     var _insCollapsed = false;
-    var _insFree = { left: 80, top: 120, w: 720, h: 380 };
+    var _insFree = { left: 80, top: 120, w: 360, h: 380 };
     var _castDock = "";
     var _castCollapsed = true;
     var _castLayLoaded = false;
@@ -165,10 +165,10 @@
         try { return localStorage.getItem(LS_BROWSE) === "flow" ? "flow" : "page"; } catch (e) { return "page"; }
     }
     function readFxOn() {
-        var v = "";
-        try { v = localStorage.getItem(LS_FX) || "on"; } catch (e) { v = "on"; }
-        if (v === "cheap" || v === "off" || v === "0") return false;
-        return true;
+        var v = null;
+        try { v = localStorage.getItem(LS_FX); } catch (e) { v = null; }
+        if (v == null || v === "" || v === "cheap" || v === "off" || v === "0") return false;
+        return v === "on";
     }
     function readSoloArtist() {
         try { return localStorage.getItem(LS_SOLO) === "1"; } catch (e) { return false; }
@@ -11657,6 +11657,7 @@
     function persistInspectLayout() {
         try {
             localStorage.setItem(LS_INSPECT_LAYOUT, JSON.stringify({
+                rev: 2,
                 dock: _insDock || "",
                 collapsed: _insCollapsed ? 1 : 0,
                 left: _insFree.left,
@@ -11776,8 +11777,12 @@
             if (lay.h) _insFree.h = lay.h;
             if (lay.left != null) _insFree.left = lay.left;
             if (lay.top != null) _insFree.top = lay.top;
-            _insDock = lay.dock || "bottom";
+            if (lay.dock === "left" || lay.dock === "right" || lay.dock === "top" || lay.dock === "bottom" || lay.dock === "") _insDock = lay.dock;
             _insCollapsed = !!lay.collapsed;
+            if ((lay.rev || 0) < 2 && _insDock === "bottom") {
+                _insDock = "left";
+                if (!(_insFree.w > 0 && _insFree.w < 520)) _insFree.w = 360;
+            }
         }
         var raw = "";
         try { raw = localStorage.getItem(LS_INSPECT) || ""; } catch (e1) { raw = ""; }
