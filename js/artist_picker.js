@@ -267,6 +267,75 @@ function openComboMenu(node, combo, x, y) {
     menu.appendChild(apickMenuBtn(T("给组合改名"), function () { openComboRename(node, combo); }));
     placeArtistMenu(menu, x, y);
 }
+function openComboSave(node) {
+    if (!node || typeof node._apEnsure !== "function") return;
+    var tags = dedupeTags(node._apEnsure().selected || []);
+    if (!tags.length) return;
+    var old = document.getElementById("apick-rename-mask");
+    if (old) old.remove();
+    var mask = document.createElement("div");
+    mask.id = "apick-rename-mask";
+    mask.className = "apick-rename-mask";
+    var box = document.createElement("div");
+    box.className = "apick-rename";
+    var title = document.createElement("h3");
+    title.textContent = T("保存画师串");
+    var input = document.createElement("input");
+    input.type = "text";
+    input.value = tags.slice(0, 3).map(showName).join(" + ");
+    input.placeholder = T("组合名称");
+    var err = document.createElement("div");
+    err.className = "apick-rename-err";
+    var row = document.createElement("div");
+    row.className = "apick-rename-row";
+    var cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "act";
+    cancel.textContent = T("取消");
+    var ok = document.createElement("button");
+    ok.type = "button";
+    ok.className = "go";
+    ok.textContent = T("确定");
+    function close() { if (mask.parentNode) mask.parentNode.removeChild(mask); }
+    function commit() {
+        var name = String(input.value || "").trim();
+        if (!name) { err.textContent = T("请先写一个组合名称"); return; }
+        var list = (node._apCombos || []).slice();
+        var dup = list.some(function (c) { return c && String(c.name || "") === name; });
+        if (dup) { err.textContent = T("这个名字已经有了"); return; }
+        list.unshift({ name: name, artists: tags.slice(), thumbs: [] });
+        node._apCombos = list;
+        var p = node._apEnsure();
+        p.combo = name;
+        node._apComboShut = false;
+        try { localStorage.setItem("apick_combo_shut", "0"); } catch (e) {}
+        node._apWrite(true);
+        if (window.animaPublishArtistCombos) window.animaPublishArtistCombos(list);
+        node._apComboSig = "";
+        node._apRender();
+        close();
+    }
+    cancel.addEventListener("click", function (ev) { ev.preventDefault(); ev.stopPropagation(); close(); });
+    ok.addEventListener("click", function (ev) { ev.preventDefault(); ev.stopPropagation(); commit(); });
+    input.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter") { ev.preventDefault(); commit(); }
+        else if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); close(); }
+    });
+    mask.addEventListener("mousedown", function (ev) {
+        ev.stopPropagation();
+        if (ev.target === mask) close();
+    });
+    box.addEventListener("mousedown", function (ev) { ev.stopPropagation(); });
+    row.appendChild(cancel);
+    row.appendChild(ok);
+    box.appendChild(title);
+    box.appendChild(input);
+    box.appendChild(err);
+    box.appendChild(row);
+    mask.appendChild(box);
+    document.body.appendChild(mask);
+    setTimeout(function () { input.focus(); input.select(); }, 0);
+}
 function openComboRename(node, combo) {
     var old = document.getElementById("apick-rename-mask");
     if (old) old.remove();
@@ -506,7 +575,10 @@ function injectStyles() {
         ".apick-fold svg{width:14px;height:14px;display:block;}",
         ".apick-label.is-shut .apick-fold{transform:rotate(-90deg);}",
         ".apick-label.is-fold:hover .apick-fold{color:#fff;}",
-        ".apick-clear{order:2;flex:0 0 auto;border:0;border-radius:6px;background:transparent;color:rgba(255,255,255,.62);font:inherit;font-size:11px;font-weight:650;letter-spacing:.04em;padding:2px 6px;cursor:pointer;}",
+        ".apick-save{order:2;flex:0 0 auto;border:0;border-radius:6px;background:rgba(var(--anima-accent-rgb),.32);color:#fff;font:inherit;font-size:11px;font-weight:650;letter-spacing:.04em;padding:2px 8px;cursor:pointer;}",
+        ".apick-save:hover{background:rgba(var(--anima-accent-rgb),.62);}",
+        ".apick-save[hidden]{display:none;}",
+        ".apick-clear{order:3;flex:0 0 auto;border:0;border-radius:6px;background:transparent;color:rgba(255,255,255,.62);font:inherit;font-size:11px;font-weight:650;letter-spacing:.04em;padding:2px 6px;cursor:pointer;}",
         ".apick-clear:hover{color:#fff;background:rgba(var(--anima-accent-rgb),.4);}",
         ".apick-clear[hidden]{display:none;}",
         ".apick-eye{order:2;flex:0 0 22px;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:6px;padding:0;background:transparent;color:rgba(255,255,255,.82);cursor:pointer;}",
@@ -641,6 +713,7 @@ function comboThumb(combo) {
 
 var _apHover = null;
 var _apHoverTimer = 0;
+var _apHoverHold = false;
 
 function hideThumbHover() {
     if (_apHoverTimer) {
@@ -648,6 +721,18 @@ function hideThumbHover() {
         _apHoverTimer = 0;
     }
     if (_apHover) _apHover.pop.style.display = "none";
+}
+
+function holdThumbHover() {
+    hideThumbHover();
+    if (_apHoverHold) return;
+    _apHoverHold = true;
+    function lift(ev) {
+        if (ev && ev.type === "mousemove" && !ev.movementX && !ev.movementY) return;
+        _apHoverHold = false;
+        window.removeEventListener("mousemove", lift, true);
+    }
+    window.addEventListener("mousemove", lift, true);
 }
 
 function ensureThumbHover() {
@@ -687,10 +772,11 @@ function previewSrc(item) {
 function bindThumbHover(el, src) {
     if (!el || !src) return;
     el.addEventListener("mouseenter", function () {
+        if (_apHoverHold) return;
         if (_apHoverTimer) clearTimeout(_apHoverTimer);
         _apHoverTimer = setTimeout(function () {
             _apHoverTimer = 0;
-            if (!el.isConnected || !el.matches(":hover")) return;
+            if (_apHoverHold || !el.isConnected || !el.matches(":hover")) return;
             var box = ensureThumbHover();
             if (box.img.getAttribute("src") !== src) box.img.src = src;
             var rect = el.getBoundingClientRect();
@@ -745,10 +831,15 @@ function makeX(title, onClick) {
     x.className = "apick-x";
     x.textContent = "×";
     x.title = title;
-    x.addEventListener("mousedown", function (e) { e.preventDefault(); e.stopPropagation(); });
+    x.addEventListener("mousedown", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        holdThumbHover();
+    });
     x.addEventListener("click", function (e) {
         e.preventDefault();
         e.stopPropagation();
+        holdThumbHover();
         onClick();
     });
     return x;
@@ -1047,10 +1138,6 @@ app.registerExtension({
                     existing.cn = row.cn;
                     changed = true;
                 }
-            }
-            if (!(p.selected || []).some(function (t) { return keyOf(t) === k; })) {
-                p.selected.push(row.tag);
-                changed = true;
             }
             if (changed) {
                 this._apRosterSig = "";
@@ -1369,6 +1456,18 @@ app.registerExtension({
             combos.className = "apick-combos";
 
             var outLabel = sectionLabel(T("这次输出"), APICK_ICO_OUT);
+            var saveOut = document.createElement("button");
+            saveOut.type = "button";
+            saveOut.className = "apick-save";
+            saveOut.textContent = T("保存画师串");
+            saveOut.title = T("保存画师串");
+            saveOut.hidden = true;
+            saveOut.addEventListener("click", function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                openComboSave(self);
+            });
+            outLabel.appendChild(saveOut);
             var clearOut = document.createElement("button");
             clearOut.type = "button";
             clearOut.className = "apick-clear";
@@ -1401,6 +1500,7 @@ app.registerExtension({
             wrap.appendChild(grid);
             wrap.appendChild(foot);
 
+            this._apSaveComboBtn = saveOut;
             this._apClearOutBtn = clearOut;
             this._apRoot = wrap;
             this._apSearch = search;
@@ -1478,7 +1578,8 @@ app.registerExtension({
                 fetch("/danbooru_anima/favorites?cats=artists").then(function (r) { return r.json(); }).catch(function () { return null; }),
                 fetch("/gelbooru_anima/favorites?cats=artists").then(function (r) { return r.json(); }).catch(function () { return null; }),
                 fetch("/danbooru_anima/load_userdata").then(function (r) { return r.json(); }).catch(function () { return null; }),
-                fetch("/danbooru_anima/favorites?cats=animadex_artists").then(function (r) { return r.json(); }).catch(function () { return null; })
+                fetch("/danbooru_anima/favorites?cats=animadex_artists").then(function (r) { return r.json(); }).catch(function () { return null; }),
+                fetch("/gelbooru_anima/favorites?cats=images").then(function (r) { return r.json(); }).catch(function () { return null; })
             ]).then(function (trio) {
                 var map = {};
                 var joinAt = 0;
@@ -1514,8 +1615,35 @@ app.registerExtension({
                     order.forEach(take);
                     Object.keys(arts).forEach(take);
                 }
+                function ingestGelImages(d) {
+                    var imgs = (d && d.favorites && d.favorites.images) || {};
+                    Object.keys(imgs).forEach(function (id) {
+                        if (!id || String(id).charAt(0) === "_") return;
+                        var info = imgs[id];
+                        if (!info || typeof info !== "object") return;
+                        var list = info.artist;
+                        if (!Array.isArray(list) || !list.length) return;
+                        var tr = (info.translations && typeof info.translations === "object") ? info.translations : {};
+                        list.forEach(function (raw) {
+                            var tag = normTag(raw);
+                            var key = keyOf(tag);
+                            if (!key || map[key]) return;
+                            var cn = cleanCn(tr[raw] || tr[key] || tr[String(raw || "").replace(/_/g, " ")] || "");
+                            map[key] = {
+                                tag: tag,
+                                thumb: info.thumb || "",
+                                cn: cn,
+                                rating: 0,
+                                starred: false,
+                                source: "gelbooru",
+                                joined: joinAt++
+                            };
+                        });
+                    });
+                }
                 ingest(trio[0], "danbooru");
                 ingest(trio[1], "gelbooru");
+                ingestGelImages(trio[4]);
                 self._apFav = map;
                 self._apIndexKnown(trio[3]);
                 self._apFavRanked = null;
@@ -1893,6 +2021,7 @@ app.registerExtension({
             if (!strip) return;
             var p = this._apEnsure();
             var sig = "s:" + (this._apFavReady ? "1" : "0") + ":" + p.selected.join("|");
+            if (this._apSaveComboBtn) this._apSaveComboBtn.hidden = !p.selected.length;
             if (this._apClearOutBtn) this._apClearOutBtn.hidden = !p.selected.length;
             if (this._apStripSig === sig) return;
             var left = strip.scrollLeft;
@@ -2199,11 +2328,7 @@ app.registerExtension({
             name.textContent = showName(tile.tag);
             b.appendChild(name);
             b.addEventListener("click", function () {
-                var k = keyOf(tile.tag);
-                var on = b.classList.contains("on");
-                if (on) self._apDropOut(tile.tag);
-                else self._apAdd(tile);
-                b.classList.toggle("on", !on);
+                self._apAdd(tile);
             });
             return b;
         };
@@ -2242,6 +2367,7 @@ app.registerExtension({
             tabs.className = "apick-sorts";
             [
                 { id: "fav", label: "收藏" },
+                { id: "gel", label: "G站" },
                 { id: "adex", label: "AnimaDex" },
                 { id: "manual", label: "手动" }
             ].forEach(function (tab) {
@@ -2270,7 +2396,7 @@ app.registerExtension({
                     }
                     return;
                 }
-                if (self._apAddMode === "fav") {
+                if (self._apAddMode === "fav" || self._apAddMode === "gel") {
                     self._apFavQuery = search.value;
                     self._apPaintFav();
                 }
@@ -2387,7 +2513,7 @@ app.registerExtension({
             this._apAdexPage = 1;
             var saved = "";
             try { saved = localStorage.getItem("apick_add_mode") || ""; } catch (e) {}
-            if (saved !== "fav" && saved !== "adex" && saved !== "manual") {
+            if (saved !== "fav" && saved !== "gel" && saved !== "adex" && saved !== "manual") {
                 saved = Object.keys(this._apFav || {}).length ? "fav" : "adex";
             }
             var view = "";
@@ -2402,7 +2528,7 @@ app.registerExtension({
             var grid = this._apFavGrid;
             var mask = this._apMask;
             if (!grid || !mask) return;
-            if (this._apAddMode && this._apAddMode !== "fav") return;
+            if (this._apAddMode && this._apAddMode !== "fav" && this._apAddMode !== "gel") return;
             var seq = (this._apFavSeq || 0) + 1;
             this._apFavSeq = seq;
             var self = this;
@@ -2412,6 +2538,8 @@ app.registerExtension({
             var qn = q.replace(/\s+/g, "_");
             var qs = q.replace(/_/g, " ");
             var list = this._apFavSorted();
+            var gel = this._apAddMode === "gel";
+            list = list.filter(function (it) { return gel ? it.source === "gelbooru" : it.source !== "gelbooru"; });
             if (q) {
                 list = list.filter(function (it) {
                     var name = keyOf(it.tag);
@@ -2426,7 +2554,7 @@ app.registerExtension({
             if (!list.length) {
                 var empty = document.createElement("div");
                 empty.className = "apick-empty";
-                empty.textContent = q ? T("没有匹配的画师") : (this._apFavReady ? T("还没有收藏画师") : T("加载中..."));
+                empty.textContent = q ? T("没有匹配的画师") : (this._apFavReady ? (gel ? T("G站收藏里还没有画师") : T("还没有收藏画师")) : T("加载中..."));
                 grid.appendChild(empty);
                 return;
             }
@@ -2447,7 +2575,7 @@ app.registerExtension({
         };
 
         nodeType.prototype._apSetAddMode = function (mode) {
-            if (mode !== "fav" && mode !== "adex" && mode !== "manual") mode = "fav";
+            if (mode !== "fav" && mode !== "gel" && mode !== "adex" && mode !== "manual") mode = "fav";
             this._apAddMode = mode;
             try { localStorage.setItem("apick_add_mode", mode); } catch (e) {}
             if (this._apAddTabs) {
@@ -2455,7 +2583,7 @@ app.registerExtension({
                     el.classList.toggle("on", el.dataset.mode === mode);
                 });
             }
-            if (this._apFavSorts) this._apFavSorts.style.display = mode === "fav" ? "" : "none";
+            if (this._apFavSorts) this._apFavSorts.style.display = (mode === "fav" || mode === "gel") ? "" : "none";
             if (this._apAdexSubs) this._apAdexSubs.style.display = mode === "adex" ? "" : "none";
             if (this._apAddSearch) {
                 this._apAddSearch.style.display = mode === "manual" ? "none" : "";
@@ -2465,7 +2593,7 @@ app.registerExtension({
             if (this._apManual) this._apManual.style.display = mode === "manual" ? "" : "none";
             if (this._apManualHint) this._apManualHint.style.display = mode === "manual" ? "" : "none";
             if (this._apFavGrid) this._apFavGrid.style.display = mode === "manual" ? "none" : "";
-            if (mode === "fav") this._apPaintFav();
+            if (mode === "fav" || mode === "gel") this._apPaintFav();
             else if (mode === "adex") this._apShowAdex();
             else if (this._apFavGrid) this._apFavGrid.textContent = "";
             if (mode === "manual" && this._apManualInput) {

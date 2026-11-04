@@ -726,6 +726,8 @@
         "看这个组合的成图": "See images with this combo",
         "只看这位画师的单画师图": "See this artist's solo images",
         "这次输出": "This output",
+        "保存画师串": "Save artist string",
+        "G站收藏里还没有画师": "No Gelbooru favorite artists yet",
         "清空这次输出": "Clear this output",
         "名单": "List",
         "从下面点一位画师": "Pick an artist below",

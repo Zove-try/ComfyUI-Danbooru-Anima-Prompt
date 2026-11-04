@@ -4838,6 +4838,10 @@ def img_fav_keys():
 
 
 _DRAG_LOCK = threading.Lock()
+_DRAG_STA_QUEUE = None
+_DRAG_STA_THREAD = None
+_DRAG_STA_READY = threading.Lock()
+_DRAG_SRC_HOLD = None
 _DRAG_ABORT = threading.Event()
 _DRAG_S_DROP = 0x00040100
 _DRAG_S_CANCEL = 0x00040101
@@ -5032,42 +5036,55 @@ def _drag_pump(stop, tid):
             break
 
 
-def _win_drag_files(paths):
-    if sys.platform != "win32":
-        return False, "当前只支持在 Windows 里拖出"
-    if not paths:
-        return False, "文件不存在"
-    if not _left_button_down():
-        return False, ""
-    if not _DRAG_LOCK.acquire(blocking=False):
-        return False, "正在拖出另一张图"
+def _drag_sta_loop():
+    """拖放专用线程。OLE 只初始化一次，这条线程活着就不拆。"""
     ole32 = ctypes.windll.ole32
+    ole32.OleInitialize.argtypes = [ctypes.c_void_p]
+    ole32.OleInitialize.restype = ctypes.HRESULT
+    try:
+        hr = int(ole32.OleInitialize(None))
+    except Exception:
+        hr = -1
+    while True:
+        job = _DRAG_STA_QUEUE.get()
+        try:
+            if hr < 0:
+                job["ok"] = False
+                job["err"] = "拖出失败"
+            else:
+                job["ok"], job["err"] = _win_drag_files_sta(job["paths"])
+        except Exception:
+            job["ok"] = False
+            job["err"] = "拖出失败"
+        finally:
+            job["done"].set()
+
+
+def _ensure_drag_sta():
+    global _DRAG_STA_QUEUE, _DRAG_STA_THREAD
+    with _DRAG_STA_READY:
+        if _DRAG_STA_THREAD is not None and _DRAG_STA_THREAD.is_alive():
+            return
+        import queue
+        _DRAG_STA_QUEUE = queue.Queue()
+        _DRAG_STA_THREAD = threading.Thread(target=_drag_sta_loop, name="opv-drag-sta", daemon=True)
+        _DRAG_STA_THREAD.start()
+
+
+def _win_drag_files_sta(paths):
+    """在专用线程里做系统拖放。光标靠消息补发，不跟前台窗口绑输入队列。"""
     shell32 = ctypes.windll.shell32
     user32 = _drag_user32()
     kernel32 = ctypes.windll.kernel32
     kernel32.GetCurrentThreadId.restype = ctypes.c_uint32
-    started = False
+    global _DRAG_SRC_HOLD
     src = None
     data = None
     pidls = ()
-    attached_to = 0
-    our_tid = 0
+    pump = None
     stop_pump = threading.Event()
     _DRAG_ABORT.clear()
     try:
-        ole32.OleInitialize.argtypes = [ctypes.c_void_p]
-        ole32.OleInitialize.restype = ctypes.HRESULT
-        hr_ole = int(ole32.OleInitialize(None))
-        if hr_ole < 0:
-            return False, "拖出失败"
-        started = True
-        our_tid = kernel32.GetCurrentThreadId()
-        fg = user32.GetForegroundWindow()
-        fg_tid = user32.GetWindowThreadProcessId(fg, None) if fg else 0
-        if fg_tid and fg_tid != our_tid:
-            if user32.AttachThreadInput(our_tid, fg_tid, True):
-                attached_to = fg_tid
-
         class _MSG(ctypes.Structure):
             _fields_ = [
                 ("hwnd", ctypes.c_void_p),
@@ -5093,6 +5110,7 @@ def _win_drag_files(paths):
         shell32.SHDoDragDrop.restype = ctypes.HRESULT
         effect = ctypes.c_uint32(0)
         src_ptr = ctypes.c_void_p(ctypes.addressof(src["obj"]))
+        our_tid = kernel32.GetCurrentThreadId()
         pump = threading.Thread(target=_drag_pump, args=(stop_pump, our_tid), name="opv-drag-pump", daemon=True)
         pump.start()
         hr = int(shell32.SHDoDragDrop(None, data, src_ptr, 1, ctypes.byref(effect)))
@@ -5111,11 +5129,8 @@ def _win_drag_files(paths):
     finally:
         stop_pump.set()
         _DRAG_ABORT.set()
-        if attached_to and our_tid:
-            try:
-                user32.AttachThreadInput(our_tid, attached_to, False)
-            except Exception:
-                pass
+        if pump is not None:
+            pump.join(timeout=1.0)
         if data:
             try:
                 _com_release(data)
@@ -5127,11 +5142,26 @@ def _win_drag_files(paths):
                     shell32.ILFree(one)
                 except Exception:
                     pass
-        if started:
-            try:
-                ole32.OleUninitialize()
-            except Exception:
-                pass
+        _DRAG_SRC_HOLD = src
+
+
+def _win_drag_files(paths):
+    if sys.platform != "win32":
+        return False, "当前只支持在 Windows 里拖出"
+    if not paths:
+        return False, "文件不存在"
+    if not _left_button_down():
+        return False, ""
+    if not _DRAG_LOCK.acquire(blocking=False):
+        return False, "正在拖出另一张图"
+    try:
+        _ensure_drag_sta()
+        done = threading.Event()
+        job = {"paths": list(paths), "done": done, "ok": False, "err": "拖出失败"}
+        _DRAG_STA_QUEUE.put(job)
+        done.wait()
+        return bool(job["ok"]), job.get("err") or ""
+    finally:
         _DRAG_LOCK.release()
 
 

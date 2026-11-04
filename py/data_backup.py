@@ -25,6 +25,7 @@ DATA_RELS = [
     "py/preset_user_data.json",
     "py/user_translations.json",
     "artist_live_thumbs.json",
+    "output_image_favorites.json",
 ]
 _DATA_SET = set(DATA_RELS)
 _FAV_RELS = {"favorites.json", "gelbooru_favorites.json"}
@@ -123,6 +124,59 @@ def _safe_zip_name(name):
     if len(parts[0]) == 2 and parts[0][1] == ":":
         return None
     return n
+
+
+def _img_fav_item_key(it):
+    if not isinstance(it, dict):
+        return None
+    name = os.path.basename(str(it.get("filename") or "").replace("\\", "/"))
+    sub = str(it.get("subfolder") or "").replace("\\", "/").strip("/")
+    if not name or name in (".", ".."):
+        return None
+    if sub and any(p in ("", ".", "..") for p in sub.split("/")):
+        return None
+    return (sub + "/" + name) if sub else name
+
+
+def _merge_img_favs(local, backup):
+    def items_of(obj):
+        if isinstance(obj, dict) and isinstance(obj.get("items"), list):
+            return obj["items"]
+        return []
+
+    by = {}
+    order = []
+
+    def take(it, from_backup):
+        key = _img_fav_item_key(it)
+        if not key:
+            return
+        if key not in by:
+            order.append(key)
+            by[key] = dict(it)
+            return
+        cur = by[key]
+        if from_backup:
+            merged = dict(cur)
+            merged.update(it)
+            if not str(merged.get("sha256") or "").strip() and cur.get("sha256"):
+                merged["sha256"] = cur["sha256"]
+            by[key] = merged
+        elif not str(cur.get("sha256") or "").strip() and it.get("sha256"):
+            cur["sha256"] = it["sha256"]
+
+    for it in items_of(local):
+        take(it, False)
+    for it in items_of(backup):
+        take(it, True)
+    ver = 1
+    src = backup if isinstance(backup, dict) else local
+    if isinstance(src, dict):
+        try:
+            ver = int(src.get("ver") or 1)
+        except Exception:
+            ver = 1
+    return {"ver": ver, "items": [by[k] for k in order]}
 
 
 def _resolve_zip_entry(zname):
@@ -490,6 +544,8 @@ def _merge_json(rel, local, backup):
         return _merge_preset_user(local, backup)
     if rel == "custom_tags.json":
         return _merge_custom_tags(local, backup)
+    if rel == "output_image_favorites.json":
+        return _merge_img_favs(local, backup)
     if rel == "prompt_model_tags.json":
         return _union_list(
             local if isinstance(local, list) else [],
