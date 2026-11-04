@@ -20,7 +20,7 @@
 
 ### 提示词创作器
 
-自己选标签来写。Anima、Noob、Aesthetic 三个模型。写完的那句提示词接到采样器。
+自己选标签来写。选完可以在 Anima、Noob、Aesthetic 三种模式之间切换，用来控制输出标签的格式和顺序。写好的提示词接到正向提示词的 CLIP 文本编码器。
 
 <img src="docs/ui/composer.png" alt="提示词创作器" width="720">
 
