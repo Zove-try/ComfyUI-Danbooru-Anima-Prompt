@@ -7,6 +7,13 @@
 <p align="center">本插件在 ComfyUI 里，通过各种自定义节点，输出符合主流二次元模型要求的格式和顺序的提示词。同时本插件自带管理生成图像的工具和一些便携提示词撰写工具。希望大家能喜欢。</p>
 
 <p align="center">
+  制作这个插件花费了我大量的时间和金钱。<br>
+  如果大家觉得插件好用的话，可以来我的B站主页看一看。<br>
+  如果能给我的账号点一个关注，那就是对我最大的支持了。<br><br>
+  <a href="https://space.bilibili.com/169318349"><img src="docs/ui/bilibili.png" width="22" height="22" alt="B站" style="vertical-align:middle"> 我的B站</a>
+</p>
+
+<p align="center">
   <a href="#提示词创作">提示词创作</a> ·
   <a href="#搜图和标签">搜图和标签</a> ·
   <a href="#改提示词">改提示词</a> ·
@@ -267,7 +274,3 @@ curl -L -o tags_enhanced.csv "https://raw.githubusercontent.com/SuzumiyaAkizuki/
 下载后重启 ComfyUI，Tag Classifier 节点的「启用本地标签数据库」默认开启。本地查不到的标签会自动 fallback 到 API 查询。
 
 如需关闭，在节点上将开关设为 `False` 即可。
-
-制作这个插件花费了我大量的时间和金钱。如果大家觉得插件好用的话，可以来我的B站主页看一看。如果能给我的账号点一个关注，那就是对我最大的支持了。
-
-这是我的B站：https://space.bilibili.com/169318349
