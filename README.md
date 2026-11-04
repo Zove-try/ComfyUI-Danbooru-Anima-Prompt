@@ -17,7 +17,7 @@
 
 <p align="center">
   制作这个插件花费了我大量的时间和精力，如果您觉得这个插件还不错的话，可以关注一下我的 B 站账号，您的关注和点赞就是对我最大的鼓励。<br>
-  <a href="https://space.bilibili.com/169318349" target="_blank" rel="noopener noreferrer"><img src="docs/ui/bilibili.png" width="18" height="18" alt="哔哩哔哩" style="vertical-align:middle"> 这是B站主页</a>
+  <a href="https://space.bilibili.com/169318349" target="_blank" rel="noopener noreferrer"><img src="docs/ui/bilibili.png" width="18" height="18" alt="哔哩哔哩" style="vertical-align:middle"> B站主页</a>
 </p>
 
 ## 提示词创作
