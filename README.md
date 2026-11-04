@@ -7,19 +7,17 @@
 <p align="center">本插件在 ComfyUI 里，通过各种自定义节点，输出符合主流二次元模型要求的格式和顺序的提示词。同时本插件自带管理生成图像的工具和一些便携提示词撰写工具。希望大家能喜欢。</p>
 
 <p align="center">
-  制作这个插件花费了我大量的时间和金钱。<br>
-  如果大家觉得插件好用的话，可以来我的B站主页看一看。<br>
-  如果能给我的账号点一个关注，那就是对我最大的支持了。<br><br>
-  <a href="https://space.bilibili.com/169318349"><img src="docs/ui/bilibili.png" width="22" height="22" alt="B站" style="vertical-align:middle"> 我的B站</a>
-</p>
-
-<p align="center">
   <a href="#提示词创作">提示词创作</a> ·
   <a href="#搜图和标签">搜图和标签</a> ·
   <a href="#改提示词">改提示词</a> ·
   <a href="#生成图像管理">生成图像管理</a> ·
   <a href="#顶栏总设置">顶栏总设置</a> ·
   <a href="#分辨率和分组">分辨率和分组</a>
+</p>
+
+<p align="center">
+  制作这个插件花费了我大量的时间和精力，如果您觉得这个插件还不错的话，可以关注一下我的 B 站账号，您的关注和点赞就是对我最大的鼓励。<br>
+  <a href="https://space.bilibili.com/169318349"><img src="docs/ui/bilibili.png" width="18" height="18" alt="哔哩哔哩" style="vertical-align:middle"> 我的B站</a>
 </p>
 
 ## 提示词创作
