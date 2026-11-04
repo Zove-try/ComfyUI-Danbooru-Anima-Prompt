@@ -4,9 +4,7 @@
 
 <h1 align="center">ComfyUI-Danbooru-Anima-Prompt</h1>
 
-<p align="center">在 ComfyUI 里翻 D 站、G 站，把标签写成 Anima、Noob、Aesthetic、NewBie 的提示词。图进 output 之后，顶栏可以打开查看器。</p>
-
-<p align="center">两个创作器在右键菜单 <b>Anima</b>。其余节点在 <b>Danbooru Anima</b>。查看器和总设置在顶栏。总设置的按钮就是上面这枚图标。</p>
+<p align="center">在 ComfyUI 里搜 D 站和 G 站的图，把标签整理成提示词，给 Anima、Noob、Aesthetic、NewBie 出图用。生成出来的图，也可以在这里查看和管理。</p>
 
 <p align="center">
   <a href="#提示词创作">提示词创作</a> ·
