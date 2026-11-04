@@ -267,3 +267,7 @@ curl -L -o tags_enhanced.csv "https://raw.githubusercontent.com/SuzumiyaAkizuki/
 下载后重启 ComfyUI，Tag Classifier 节点的「启用本地标签数据库」默认开启。本地查不到的标签会自动 fallback 到 API 查询。
 
 如需关闭，在节点上将开关设为 `False` 即可。
+
+制作这个插件花费了我大量的时间和金钱。如果大家觉得插件好用的话，可以来我的B站主页看一看。如果能给我的账号点一个关注，那就是对我最大的支持了。
+
+这是我的B站：https://space.bilibili.com/169318349
