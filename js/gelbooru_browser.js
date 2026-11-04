@@ -1152,7 +1152,7 @@ if (typeof window.clampPopup !== "function") {
                 // Filter bar
                 const _ratingChips = {};
                 const filterBar = $el("div", { style: { display:"flex",gap:"8px",padding:"4px 10px",borderBottom:"1px solid var(--anima-line)",background:"linear-gradient(165deg,var(--anima-well) 0%,var(--anima-bg-deep) 72%)",flexShrink:0,flexWrap:"wrap",alignItems:"center" } });
-                [{v:"general",l:"🟢普通",c:"#6ee7b7"},{v:"sensitive",l:"🟡敏感",c:"#fbbf24"},{v:"questionable",l:"🟠擦边",c:"#f87171"},{v:"explicit",l:"🔴R18",c:"#f87171"}].forEach(r => {
+                [{v:"general",l:"🟢普通",c:"#6ee7b7"},{v:"sensitive",l:"🟡敏感",c:"#fbbf24"},{v:"questionable",l:"🟠擦边",c:"#f87171"},{v:"explicit",l:"🔴深度",c:"#f87171"}].forEach(r => {
                     const chip = $el("span", { textContent:r.l, style: { padding:"2px 8px",borderRadius:"3px",cursor:"pointer",fontSize:"12px",background:"linear-gradient(165deg,var(--anima-well-lo) 0%,var(--anima-bg-deep) 72%)",color:r.c,border:"1px solid transparent",userSelect:"none" },
                         onclick: () => {
                             if (_activeRatings.has(r.v)) { _activeRatings.delete(r.v); chip.style.background="linear-gradient(165deg,var(--anima-well-lo) 0%,var(--anima-bg-deep) 72%)"; chip.style.border="1px solid transparent"; }
@@ -1654,7 +1654,8 @@ if (typeof window.clampPopup !== "function") {
                             card.appendChild($el("span", { className:"gel-hover", textContent:"★"+post.score, style: { position:"absolute",top:"3px",right:"3px",background:"rgba(0,0,0,0.8)",color:"#fbbf24",padding:"1px 5px",borderRadius:"3px",fontSize:"11px",fontWeight:"bold" } }));
                         }
                         const rc = { general:"var(--anima-accent-soft)",sensitive:"#fbbf24",questionable:"#f87171",explicit:"#f87171" };
-                        card.appendChild($el("span", { className:"gel-hover", textContent:(post.rating||"?").toUpperCase(), style: { position:"absolute",top:"3px",right:"52px",background:rc[post.rating]||"#888",color:"#fff",padding:"1px 4px",borderRadius:"3px",fontSize:"10px",fontWeight:"bold" } }));
+                        const rl = { general:"普通",sensitive:"敏感",questionable:"擦边",explicit:"深度" };
+                        card.appendChild($el("span", { className:"gel-hover", textContent:rl[post.rating]||"?", style: { position:"absolute",top:"3px",right:"52px",background:rc[post.rating]||"#888",color:"#fff",padding:"1px 4px",borderRadius:"3px",fontSize:"10px",fontWeight:"bold" } }));
                         const tagBtn = $el("span", { className:"gel-act", textContent:"📋", title:"查看图片信息", onclick: (e) => { e.stopPropagation(); showTagOverlay(post); } });
                         const clsBtn = $el("span", { className:"gel-act", textContent:"🔍", title:"搜角色/系列/画师", onclick: (e) => { e.stopPropagation();
                             const cached = _tagCache[post.id];
