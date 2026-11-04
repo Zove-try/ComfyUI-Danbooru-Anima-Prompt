@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="js/icon.png" width="168" alt="Danbooru Anima Prompt">
+  <img src="docs/ui/header-icon.png" width="168" alt="Danbooru Anima Prompt">
 </p>
 
 <h1 align="center">ComfyUI-Danbooru-Anima-Prompt</h1>
