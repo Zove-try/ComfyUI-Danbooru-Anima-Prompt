@@ -107,15 +107,24 @@ class DanbooruTextPassthrough:
         if unique_id:
             _passthrough_gen[unique_id] = _passthrough_gen.get(unique_id, 0) + 1
             my_gen = _passthrough_gen[unique_id]
-            _status_by_id[(unique_id, my_gen)] = "paused"
-            PromptServer.instance.send_sync("db-pt-show-continue", {"node_id": unique_id, "text": output, "gen": my_gen})
-            while _status_by_id.get((unique_id, my_gen)) == "paused":
-                time.sleep(0.1)
-            if (unique_id, my_gen) in _edited_by_id:
-                output = _edited_by_id[(unique_id, my_gen)]
-                del _edited_by_id[(unique_id, my_gen)]
-            if (unique_id, my_gen) in _status_by_id:
-                del _status_by_id[(unique_id, my_gen)]
+            key = (unique_id, my_gen)
+            _status_by_id[key] = "paused"
+            try:
+                PromptServer.instance.send_sync("db-pt-show-continue", {"node_id": unique_id, "text": output, "gen": my_gen})
+                import comfy.model_management
+                while _status_by_id.get(key) == "paused":
+                    # 暂停时也要认队列中断，否则这个等待会把执行线程一直占住
+                    comfy.model_management.throw_exception_if_processing_interrupted()
+                    time.sleep(0.1)
+                if key in _edited_by_id:
+                    output = _edited_by_id[key]
+            finally:
+                _edited_by_id.pop(key, None)
+                _status_by_id.pop(key, None)
+                try:
+                    PromptServer.instance.send_sync("db-pt-hide-continue", {"node_id": unique_id, "gen": my_gen})
+                except Exception:
+                    pass
         return (output,)
 
 

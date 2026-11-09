@@ -2283,6 +2283,17 @@ var _pinApplyHeight = function(){
                 };
             };
             api.addEventListener("db-pt-show-continue", node._ptHandler);
+            if (node._ptIntHandler) {
+                api.removeEventListener("execution_interrupted", node._ptIntHandler);
+                api.removeEventListener("db-pt-hide-continue", node._ptIntHandler);
+            }
+            node._ptIntHandler = function(e) {
+                var nid = e && e.detail && e.detail.node_id;
+                if (nid != null && String(nid) !== String(node.id)) return;
+                continueBtn.style.display = "none";
+            };
+            api.addEventListener("execution_interrupted", node._ptIntHandler);
+            api.addEventListener("db-pt-hide-continue", node._ptIntHandler);
 
             // ── 节点删除时清理定时器/监听器（防累积泄漏，对齐 D站浏览器模式）──
             if (!node._ptCleaned) {
@@ -2292,6 +2303,12 @@ var _pinApplyHeight = function(){
                     try { if (node._ptColorTimer) clearInterval(node._ptColorTimer); } catch(e) {}
                     try { if (node._ptAcCloseFn) document.removeEventListener("click", node._ptAcCloseFn); } catch(e) {}
                     try { if (node._ptHandler) api.removeEventListener("db-pt-show-continue", node._ptHandler); } catch(e) {}
+                    try {
+                        if (node._ptIntHandler) {
+                            api.removeEventListener("execution_interrupted", node._ptIntHandler);
+                            api.removeEventListener("db-pt-hide-continue", node._ptIntHandler);
+                        }
+                    } catch(e) {}
                 };
             }
 
