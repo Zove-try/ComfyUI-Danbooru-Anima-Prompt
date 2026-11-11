@@ -12226,6 +12226,18 @@
     }, true);
 
     setTitle();
+    window.addEventListener("anima-locale", function () {
+        setTitle();
+        try { renderCrumb(); } catch (eCr) {}
+        try { renderFolders(); } catch (eFo) {}
+        if ((state.items || []).length) {
+            var gal = document.getElementById("gallery");
+            var top = gal ? gal.scrollTop : 0;
+            try { renderGrid(); } catch (eGr) {}
+            if (gal) gal.scrollTop = top;
+        }
+        try { syncTileFavMarks(); } catch (eFv) {}
+    });
     applyFxClass();
     applyBrowseChrome();
     bindChrome();

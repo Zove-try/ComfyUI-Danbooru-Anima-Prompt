@@ -95,7 +95,7 @@ function openComboInViewer(combo) {
         arts.push(tag);
     });
     if (!arts.length) return;
-    var url = "/extensions/ComfyUI-Danbooru-Anima-Prompt/output_prompt_viewer.html?v=222&artists=" + encodeURIComponent(JSON.stringify(arts)) + "&exact=1";
+    var url = "/extensions/ComfyUI-Danbooru-Anima-Prompt/output_prompt_viewer.html?v=224&artists=" + encodeURIComponent(JSON.stringify(arts)) + "&exact=1";
     if (combo && combo.name) url += "&combo=" + encodeURIComponent(combo.name);
     var w = window.open(url, "anima-opv");
     if (w) { try { w.focus(); } catch (e) {} }
@@ -104,7 +104,7 @@ function openComboInViewer(combo) {
 function openArtistInViewer(tag) {
     var t = normTag(tag);
     if (!t) return;
-    var url = "/extensions/ComfyUI-Danbooru-Anima-Prompt/output_prompt_viewer.html?v=222&artists=" + encodeURIComponent(JSON.stringify([t])) + "&solo=1";
+    var url = "/extensions/ComfyUI-Danbooru-Anima-Prompt/output_prompt_viewer.html?v=224&artists=" + encodeURIComponent(JSON.stringify([t])) + "&solo=1";
     var w = window.open(url, "anima-opv");
     if (w) { try { w.focus(); } catch (e) {} }
 }

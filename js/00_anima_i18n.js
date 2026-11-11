@@ -110,6 +110,12 @@
         "这个分类里还没有书签": "No bookmarks in this folder",
         "拖拽移动": "Drag to move",
         "拖拽调整大小": "Drag to resize",
+        "输出目录": "Output",
+        "含当前筛选": "With the current filters",
+        "从这张图继续往下看": "Continue downward from this image",
+        "已跳到这张图": "Jumped to this image",
+        "这张图已经不在这个列表里": "This image is no longer in this list",
+        "删除书签": "Delete bookmark",
         "加入收藏夹": "Add to favorites",
         "移出收藏夹": "Remove from favorites",
         "已加入收藏夹": "Added to favorites",
@@ -1039,7 +1045,58 @@
         "用布尔值控制这个组": "Drive this group with a boolean",
         "这个布尔是算出来的，要等这一次排队跑完，开关才会跟着变。": "This boolean is computed. The switch follows it after this queue finishes.",
         "这个开关会跟着布尔值马上变。": "This switch follows the boolean immediately.",
-        "（选择节点）": "Choose a node"
+        "（选择节点）": "Choose a node",
+        "一次最多选 100 个画师": "Up to 100 artists at a time",
+        "⭐ 收藏置顶（画师）": "⭐ Pin favorite (artist)",
+        "按原始像素显示": "Show at original pixels",
+        "缩回适应窗口": "Fit the window again",
+        "其余功能。点加号放进主圈，主圈上的叉可拿下": "The rest. Plus moves one onto the main ring. The X on the ring takes it off.",
+        "放到主圈": "Put on the main ring",
+        "主圈最多放 7 个，先拿掉一个": "The main ring holds 7. Take one off first.",
+        "移出主圈": "Take off the main ring",
+        "同画师": "Same artist",
+        "同角色": "Same character",
+        "同系列": "Same series",
+        "搜角色": "Search character",
+        "搜系列": "Search series",
+        "搜画师": "Search artist",
+        "生成同款": "Generate a match",
+        "复制画师": "Copy artist",
+        "画师组合": "Artist combo",
+        "复制标签": "Copy tags",
+        "提示词收藏": "Prompt favorites",
+        "画师置顶": "Pin artist",
+        "AI缩略图": "AI thumbnail",
+        "新标签页": "New tab",
+        "本地打开": "Open locally",
+        "更多": "More",
+        "退出对比": "Exit compare",
+        "退出对比，回到普通浏览": "Exit compare and return to browsing",
+        "开启对比，点图勾选": "Start compare, then click images to select",
+        "一次看全部已选图，滚轮可放大": "See every selected image at once. Scroll to zoom.",
+        "已选 ": "Selected ",
+        " 张都在画面里。滚轮放大，拖动移动，双击还原": " images are on screen. Scroll to zoom, drag to move, double-click to reset.",
+        "这个模式只比 A / B。要一起看 ": "This mode compares A and B only. To see ",
+        " 张，用并排或宫格": " images together, use side by side or a grid.",
+        "点此展开模型筛选": "Click to open the model filter",
+        "更多。主圈一圈最多 7 个，点「更多」看其余，加号可换上主圈。拖动换位置，点击可固定": "More. The main ring holds 7. Click More for the rest. Plus swaps one onto the ring. Drag to reorder, click to pin.",
+        "滚轮放大，按住拖动查看": "Scroll to zoom, drag to look around",
+        "模型筛选": "Model filter",
+        "点一个主模型。可以多选。不选就是全部。和画师、角色、标签、评分一起生效。": "Click a checkpoint. You can pick more than one. None means all. This stacks with artist, character, tag, and score.",
+        "拖拽调整大小，双击恢复默认": "Drag to resize. Double-click to restore.",
+        "没有使用所选模型的图片": "No images use the selected model",
+        "正在读取模型分类…": "Reading model groups…",
+        "正在后台识别模型，还剩 ": "Identifying models in the background, ",
+        " 张。图片和其它筛选可以先用。": " images left. You can browse and filter meanwhile.",
+        "正在识别模型…": "Identifying models…",
+        "这个范围里还没有分出模型": "No models grouped in this range yet",
+        "读取失败": "Could not read",
+        "需要重启 ComfyUI 后才能按模型分类": "Restart ComfyUI before model grouping works",
+        "模型分类读取失败": "Could not read model groups",
+        "点图勾选。要结束，点红色的「退出对比」": "Click images to select. To finish, click the red Exit compare.",
+        "跳到最后一页": "Jump to the last page",
+        "🌐 G站上下文": "🌐 Gelbooru context",
+        "🌐 全随机": "🌐 Fully random"
     };
 
     function coerceLocale(raw) {
@@ -1078,10 +1135,38 @@
         try {
             if (take(localStorage.getItem("Comfy.Locale"))) return raw;
         } catch (e3b) {}
+        if (take(_serverLocale)) return raw;
         // Do not use html[lang] or navigator.language: this machine is en-US in the
         // browser while Comfy.Locale is zh. Those fallbacks were baking English
         // tooltips onto the top bar.
         return "";
+    }
+
+    var _serverLocale = "";
+
+    function liveAppLocale() {
+        try {
+            if (w.app && w.app.ui && w.app.ui.settings && typeof w.app.ui.settings.getSettingValue === "function") {
+                return !!coerceLocale(w.app.ui.settings.getSettingValue("Comfy.Locale"));
+            }
+        } catch (e) {}
+        return false;
+    }
+
+    function rememberServerLocale(v) {
+        var s = coerceLocale(v);
+        if (!s || s === _serverLocale) return;
+        _serverLocale = s;
+        try { syncBackend(); } catch (e1) {}
+        try { w.dispatchEvent(new CustomEvent("anima-locale")); } catch (e) {}
+    }
+
+    function pullServerLocale() {
+        if (liveAppLocale()) return;
+        fetch("/api/settings/Comfy.Locale", { cache: "no-store" })
+            .then(function (r) { return r.ok ? r.json() : ""; })
+            .then(function (v) { rememberServerLocale(typeof v === "string" ? v : ""); })
+            .catch(function () {});
     }
 
     function animaLang() {
@@ -1163,6 +1248,7 @@
     }
 
     function syncBackend() {
+        if (!rawLocale()) return;
         var tag = animaLocaleTag();
         var body = JSON.stringify({ language: tag });
         var hdr = { "Content-Type": "application/json" };
@@ -1181,6 +1267,7 @@
     function boot() {
         var lastLocale = "";
         function onLocaleMaybeChanged() {
+            if (!liveAppLocale()) pullServerLocale();
             var cur = rawLocale();
             if (cur === lastLocale) return;
             lastLocale = cur;
@@ -1221,8 +1308,10 @@
         } catch (e3) {}
     }
 
-    if (w.app) boot();
-    else w.addEventListener("DOMContentLoaded", boot);
+    pullServerLocale();
+    if (w.app && typeof w.app.registerExtension === "function") boot();
+    else if (document.readyState === "loading") w.addEventListener("DOMContentLoaded", boot);
+    else boot();
 })(window);
 
 /* 模糊搜索排序：完全一致最前，整词延伸其次，粘连词缀（yellow_hairband）靠后。 */

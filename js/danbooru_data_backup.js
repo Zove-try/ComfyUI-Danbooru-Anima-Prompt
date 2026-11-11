@@ -101,7 +101,7 @@ app.registerExtension({
             get label() { return animaTxt("输出提示词查看器"); },
             get tooltip() { return animaTxt("输出提示词查看器"); },
             onClick: function() {
-                window.open("/extensions/ComfyUI-Danbooru-Anima-Prompt/output_prompt_viewer.html?v=222", "_blank");
+                window.open("/extensions/ComfyUI-Danbooru-Anima-Prompt/output_prompt_viewer.html?v=224", "_blank");
             }
         },
         {
