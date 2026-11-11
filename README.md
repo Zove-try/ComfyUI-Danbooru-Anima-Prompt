@@ -7,6 +7,10 @@
 <p align="center">本插件在 ComfyUI 里，通过各种自定义节点，输出符合主流二次元模型要求的格式和顺序的提示词。同时本插件自带管理生成图像的工具和一些便携提示词撰写工具。希望大家能喜欢。</p>
 
 <p align="center">
+  <a href="https://icn01wg02kz3.feishu.cn/wiki/GM2jwW1ocic6cskuctScVY1wn77?from=from_copylink" target="_blank" rel="noopener noreferrer">节点详细用法教程</a>
+</p>
+
+<p align="center">
   <a href="#提示词创作">提示词创作</a> ·
   <a href="#搜图和标签">搜图和标签</a> ·
   <a href="#改提示词">改提示词</a> ·
