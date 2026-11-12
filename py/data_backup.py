@@ -770,6 +770,7 @@ def register_routes():
 
     @PromptServer.instance.routes.get("/danbooru_anima/popup_bgs")
     async def list_popup_bgs(request):
+        from .ext_web import extension_static_url
         custom = []
         if os.path.isdir(BG_DIR):
             names = []
@@ -789,7 +790,7 @@ def register_routes():
             "builtin": {
                 "id": "builtin",
                 "name": "内置立绘",
-                "url": "/extensions/ComfyUI-Danbooru-Anima-Prompt/heroine.png",
+                "url": extension_static_url("heroine.png"),
             },
             "custom": custom,
         })

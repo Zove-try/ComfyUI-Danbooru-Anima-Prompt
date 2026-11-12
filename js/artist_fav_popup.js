@@ -203,7 +203,7 @@ var _pinApplyHeight = function(){
     if (_savedH >= 54) { pinnedBar.style.maxHeight = Math.min(_pinFullH, _savedH) + "px"; return; }
     pinnedBar.style.maxHeight = _target + "px";
 };
-                (function(){if(window.Sortable)return;if(document.getElementById("tp-sortable-js"))return;var s=document.createElement("script");s.id="tp-sortable-js";s.src="/extensions/ComfyUI-Danbooru-Anima-Prompt/js/sortable.min.js";document.head.appendChild(s);})();
+                (function(){if(window.Sortable)return;if(document.getElementById("tp-sortable-js"))return;var s=document.createElement("script");s.id="tp-sortable-js";s.src=window.animaAsset("sortable.min.js");document.head.appendChild(s);})();
                 setTimeout(function(){
                     try {
                         if (window.Sortable && pinnedBar && !pinnedBar._sortable) {

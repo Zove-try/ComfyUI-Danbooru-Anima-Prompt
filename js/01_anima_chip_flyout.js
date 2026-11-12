@@ -165,7 +165,7 @@
         if (document.getElementById("apc-sortable-js") || document.getElementById("tp-sortable-js") || document.getElementById("anima-sortable-js")) return;
         var s = document.createElement("script");
         s.id = "anima-sortable-js";
-        s.src = "/extensions/ComfyUI-Danbooru-Anima-Prompt/js/sortable.min.js";
+        s.src = window.animaAsset("sortable.min.js");
         document.head.appendChild(s);
     };
 

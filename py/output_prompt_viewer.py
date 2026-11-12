@@ -6909,7 +6909,8 @@ def register_routes():
     async def serve_page(request):
         # aiohttp 不允许 content_type 里带 charset，会直接 500。
         # 页面由 WEB_DIRECTORY 静态提供，这里只跳转。
-        raise web.HTTPFound("/extensions/ComfyUI-Danbooru-Anima-Prompt/output_prompt_viewer.html")
+        from .ext_web import extension_static_url
+        raise web.HTTPFound(extension_static_url("output_prompt_viewer.html"))
 
     @PromptServer.instance.routes.get("/danbooru_anima/output_prompt/list")
     async def api_list(request):

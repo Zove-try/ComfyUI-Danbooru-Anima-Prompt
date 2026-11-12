@@ -1242,7 +1242,7 @@ var _pinApplyHeight = function(){
     pinnedBar.style.maxHeight = _target + "px";
 };
                 // SortableJS 本地注入（拖拽排序）
-                (function(){if(window.Sortable)return;if(document.getElementById("tp-sortable-js"))return;var s=document.createElement("script");s.id="tp-sortable-js";s.src="/extensions/ComfyUI-Danbooru-Anima-Prompt/js/sortable.min.js";document.head.appendChild(s);})();
+                (function(){if(window.Sortable)return;if(document.getElementById("tp-sortable-js"))return;var s=document.createElement("script");s.id="tp-sortable-js";s.src=window.animaAsset("sortable.min.js");document.head.appendChild(s);})();
                 div.appendChild(pinnedBar);
                 var folderBar = document.createElement("div");
                 folderBar.style.cssText = "display:none;gap:6px;padding:4px 12px;border-bottom:1px solid rgba(var(--anima-accent-rgb),.25);flex-shrink:0;overflow-x:auto;white-space:nowrap;align-items:center;";

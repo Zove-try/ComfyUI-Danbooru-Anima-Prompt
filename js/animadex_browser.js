@@ -183,7 +183,7 @@ app.registerExtension({
             const _ensureSortable = () => new Promise((resolve) => {
                 if (window.Sortable) { resolve(window.Sortable); return; }
                 const s = document.createElement("script");
-                s.src = "/extensions/ComfyUI-Danbooru-Anima-Prompt/js/sortable.min.js";
+                s.src = window.animaAsset("sortable.min.js");
                 s.onload = () => resolve(window.Sortable);
                 s.onerror = () => resolve(null);
                 document.head.appendChild(s);

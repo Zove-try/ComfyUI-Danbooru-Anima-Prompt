@@ -64,7 +64,7 @@ app.registerExtension({
                 b.appendChild(wrap);
             } else {
                 var img = document.createElement("img");
-                img.src = "/extensions/ComfyUI-Danbooru-Anima-Prompt/icon.png";
+                img.src = window.animaAsset("icon.png");
                 img.dataset.role = "anima-icon";
                 img.alt = "";
                 img.draggable = false;
@@ -101,7 +101,7 @@ app.registerExtension({
             get label() { return animaTxt("输出提示词查看器"); },
             get tooltip() { return animaTxt("输出提示词查看器"); },
             onClick: function() {
-                window.open("/extensions/ComfyUI-Danbooru-Anima-Prompt/output_prompt_viewer.html?v=224", "_blank");
+                window.animaOpenViewer(window.animaAsset("output_prompt_viewer.html") + "?v=225");
             }
         },
         {
@@ -901,11 +901,11 @@ app.registerExtension({
                         var im = document.createElement("img");
                         im.alt = "";
                         im.draggable = false;
-                        im.src = (window.ANIMA_BUILTIN_BG || "/extensions/ComfyUI-Danbooru-Anima-Prompt/heroine.png");
+                        im.src = window.ANIMA_BUILTIN_BG || window.animaAsset("heroine.png");
                         im.onerror = function() {
                             if (this.dataset.fb) return;
                             this.dataset.fb = "1";
-                            this.src = "/extensions/ComfyUI-Danbooru-Anima-Prompt/js/heroine.png";
+                            this.src = window.animaAsset("heroine.png");
                         };
                         im.style.cssText = "width:100%;height:100%;object-fit:cover;object-position:50% 18%;display:block;";
                         tile.appendChild(im);

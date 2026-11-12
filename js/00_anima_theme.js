@@ -978,7 +978,16 @@ window.animaShieldDomWidget = function (el) {
 
     window.applyAnimaTheme(window.getAnimaThemeId(), false);
 
-    window.ANIMA_BUILTIN_BG = "/extensions/ComfyUI-Danbooru-Anima-Prompt/heroine.png";
+    try {
+        Object.defineProperty(window, "ANIMA_BUILTIN_BG", {
+            configurable: true,
+            get: function () {
+                return typeof window.animaAsset === "function" ? window.animaAsset("heroine.png") : "";
+            }
+        });
+    } catch (eBg) {
+        window.ANIMA_BUILTIN_BG = typeof window.animaAsset === "function" ? window.animaAsset("heroine.png") : "";
+    }
 
     window.animaDetectSoftGpu = function () {
         if (window.__animaSoftGpu != null) return window.__animaSoftGpu;

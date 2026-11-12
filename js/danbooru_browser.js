@@ -1288,7 +1288,7 @@ app.registerExtension({
                     if (document.getElementById('db-fav-sortable-js')) return;
                     var s = document.createElement('script');
                     s.id = 'db-fav-sortable-js';
-                    s.src = '/extensions/ComfyUI-Danbooru-Anima-Prompt/js/sortable.min.js';
+                    s.src = window.animaAsset("sortable.min.js");
                     document.head.appendChild(s);
                 })();
                 let favs = await _getFavs();

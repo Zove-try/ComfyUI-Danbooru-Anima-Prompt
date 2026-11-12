@@ -1,4 +1,58 @@
 (function (w) {
+    var _assetBase = "";
+    function _takeAssetBase(text) {
+        var found = String(text || "").match(/https?:\/\/[^)\s'"]+?\.js(?:\?[^)\s'"]*)?/g) || [];
+        for (var i = 0; i < found.length; i++) {
+            if (found[i].indexOf("/extensions/") >= 0) return found[i];
+        }
+        return "";
+    }
+    try {
+        if (document.currentScript && document.currentScript.src) _assetBase = document.currentScript.src;
+    } catch (e0) {}
+    if (!_assetBase) {
+        try { _assetBase = _takeAssetBase(new Error().stack); } catch (e1) {}
+    }
+    function animaAsset(file) {
+        var here = _assetBase;
+        if (!here) {
+            try { here = _takeAssetBase(new Error().stack); } catch (e2) {}
+        }
+        if (!here) return String(file || "");
+        try { return new URL(String(file || ""), here).href; } catch (e3) { return String(file || ""); }
+    }
+    w.animaAsset = animaAsset;
+
+    w.animaOpenViewer = function (url) {
+        var electron = false;
+        try { electron = /Electron/i.test(navigator.userAgent || ""); } catch (e) {}
+        if (!electron) {
+            var win = null;
+            try { win = w.open(url, "anima-opv"); } catch (e2) { win = null; }
+            if (win) { try { win.focus(); } catch (e3) {} return win; }
+        }
+        var old = document.getElementById("anima-viewer-frame-mask");
+        if (old) old.remove();
+        var mask = document.createElement("div");
+        mask.id = "anima-viewer-frame-mask";
+        mask.style.cssText = "position:fixed;inset:0;z-index:100000;background:#111;display:flex;flex-direction:column;";
+        var bar = document.createElement("div");
+        bar.style.cssText = "height:36px;flex:0 0 auto;display:flex;align-items:center;justify-content:flex-end;padding:0 8px;background:#1b1b1b;";
+        var close = document.createElement("button");
+        close.type = "button";
+        close.textContent = (typeof w.animaTxt === "function") ? w.animaTxt("关闭") : "关闭";
+        close.style.cssText = "padding:4px 12px;border:0;border-radius:6px;background:#333;color:#eee;cursor:pointer;";
+        close.onclick = function () { mask.remove(); };
+        bar.appendChild(close);
+        var frame = document.createElement("iframe");
+        frame.src = url;
+        frame.style.cssText = "flex:1 1 auto;width:100%;border:0;background:#111;";
+        mask.appendChild(bar);
+        mask.appendChild(frame);
+        document.body.appendChild(mask);
+        return null;
+    };
+
     if (w.__animaI18nV1) return;
     w.__animaI18nV1 = true;
 

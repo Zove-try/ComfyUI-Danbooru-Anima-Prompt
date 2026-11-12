@@ -20,7 +20,7 @@ if (typeof window.clampPopup !== "function") {
 const TIME_ZH = { '(无)':'无','newest':'最新','recent':'近现代','mid':'中期','early':'早期','old':'老作品','year 2025':'2025年','year 2024':'2024年' };
 const SAFETY_ZH = { '(无)':'无','safe':'安全','sensitive':'敏感','nsfw':'NSFW','explicit':'限制级' };
 // ── SortableJS 拖拽排序 ──
-(function(){if(window.Sortable)return;if(document.getElementById("apc-sortable-js"))return;var s=document.createElement("script");s.id="apc-sortable-js";s.src="/extensions/ComfyUI-Danbooru-Anima-Prompt/js/sortable.min.js";document.head.appendChild(s);})();
+(function(){if(window.Sortable)return;if(document.getElementById("apc-sortable-js"))return;var s=document.createElement("script");s.id="apc-sortable-js";s.src=window.animaAsset("sortable.min.js");document.head.appendChild(s);})();
 (function(){if(document.getElementById("apc-sortable-css"))return;var s=document.createElement("style");s.id="apc-sortable-css";s.textContent=".apc-sortable-chosen{z-index:10;box-shadow:0 4px 16px rgba(var(--anima-accent-rgb),0.28)}.apc-sortable-ghost{opacity:0.35;border:1px dashed var(--anima-accent-soft)!important;background:rgba(var(--anima-accent-rgb),0.08)!important}";document.head.appendChild(s);})();
 (function(){var _oldApcTh=document.getElementById("apc-composer-theme-v4");if(_oldApcTh)_oldApcTh.remove();if(document.getElementById("apc-composer-theme-v5"))return;var s=document.createElement("style");s.id="apc-composer-theme-v5";s.textContent=".apc-composer-panel{--ink:#ffffff;--mute:var(--anima-mute);--sage:var(--anima-accent-soft);--well:rgba(var(--anima-well-deep-rgb),.94);--glass:rgba(var(--anima-accent-hi-rgb),.18);--line:rgba(255,255,255,.28);--spec:inset 0 1px 0 rgba(255,255,255,.22);scrollbar-width:thin;scrollbar-color:var(--anima-accent) transparent;color:#fff;font-weight:600}.apc-composer-panel::-webkit-scrollbar{width:6px}.apc-composer-panel::-webkit-scrollbar-track{background:transparent}.apc-composer-panel::-webkit-scrollbar-thumb{background:var(--anima-accent);border-radius:8px}.apc-composer-panel input,.apc-composer-panel textarea,.apc-composer-panel select{transition:border-color .15s ease,box-shadow .15s ease;color-scheme:dark;background:var(--well)!important;border-color:rgba(var(--anima-accent-rgb),.5)!important;color:#fff!important;font-size:13px!important;font-weight:700!important;box-shadow:var(--spec)}.apc-composer-panel input:focus,.apc-composer-panel textarea:focus,.apc-composer-panel select:focus{border-color:var(--anima-accent)!important;box-shadow:0 0 0 2px rgba(var(--anima-accent-rgb),.38)}.apc-composer-panel input::placeholder,.apc-composer-panel textarea::placeholder{color:var(--anima-placeholder)!important;opacity:1;font-weight:600}.apc-composer-panel button{font-weight:700}";document.head.appendChild(s);})();
 import { app } from "/scripts/app.js";
@@ -782,8 +782,8 @@ if (!_mSelected.length && !w.meta_tags?.value) { _mSelected = ["highres","absurd
                         var _migrated = false;
                         for (var _k in _thumbs2) {
                             var _v = _thumbs2[_k];
-                            if (typeof _v === "string" && _v.indexOf("/extensions/ComfyUI-Danbooru-Anima-Prompt/thumbs/") >= 0) {
-                                _thumbs2[_k] = _v.replace(/\/extensions\/ComfyUI-Danbooru-Anima-Prompt\/thumbs\//g, "/danbooru_anima/thumb/");
+                            if (typeof _v === "string" && /\/extensions\/[^/]+\/thumbs\//.test(_v)) {
+                                _thumbs2[_k] = _v.replace(/\/extensions\/[^/]+\/thumbs\//g, "/danbooru_anima/thumb/");
                                 _migrated = true;
                             }
                         }
@@ -1103,7 +1103,7 @@ if (!_mSelected.length && !w.meta_tags?.value) { _mSelected = ["highres","absurd
                                 const thumbRaw = _thumbs2[t] || _removed2[t] || (typeof PRESET_THUMBS!=="undefined"?PRESET_THUMBS[t]:null) || "";
                                 var thumbUrl = thumbRaw, thumbPx=50, thumbPy=50, thumbZoom=100;
                                 // 跳过旧 URL 格式
-                                if (typeof thumbUrl === "string" && thumbUrl.indexOf("/extensions/ComfyUI-Danbooru-Anima-Prompt/thumbs/") >= 0) thumbUrl = "";
+                                if (typeof thumbUrl === "string" && /\/extensions\/[^/]+\/thumbs\//.test(thumbUrl)) thumbUrl = "";
                                 try { var td2 = JSON.parse(thumbRaw); if(td2.url){ thumbUrl=td2.url; thumbPx=td2.px!=null?td2.px:50; thumbPy=td2.py!=null?td2.py:50; thumbZoom=td2.zoom!=null?td2.zoom:100; if (typeof thumbUrl === "string" && thumbUrl.indexOf("/extensions/") >= 0) thumbUrl = ""; } } catch(e) {}
                                 if (typeof thumbUrl !== "string") thumbUrl = "";
                                 // 空 URL 时用 PRESET_THUMBS 兜底
