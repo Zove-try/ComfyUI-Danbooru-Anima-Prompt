@@ -1,7 +1,7 @@
 // Chip hover flyout + Sortable helper (passthrough / advanced / composer)
 (function () {
-    if (window.__animaChipFlyoutV >= 19) return;
-    window.__animaChipFlyoutV = 19;
+    if (window.__animaChipFlyoutV >= 20) return;
+    window.__animaChipFlyoutV = 20;
 
     var OPEN_MS = 750;
     var CLOSE_MS = 280;
@@ -694,6 +694,7 @@
             }
         }
         chip.addEventListener("mouseenter", function () {
+            if (opts.hover === false) return;
             if (disabled()) return;
             cancelClose();
             if (openT) clearTimeout(openT);
@@ -705,6 +706,7 @@
         });
         if (opts.rightClick) {
             chip.addEventListener("contextmenu", function (e) {
+                if (opts.ignore && e.target && e.target.closest && e.target.closest(opts.ignore)) return;
                 if (disabled()) return;
                 e.preventDefault();
                 e.stopPropagation();

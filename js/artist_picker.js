@@ -5,6 +5,27 @@ import { app } from "/scripts/app.js";
 import "./00_anima_i18n.js";
 import "./00_anima_theme.js";
 import "./00_anima_fav_grid.js";
+import "./01_anima_chip_flyout.js?v=20";
+
+if (typeof window.clampPopup !== "function") {
+    window.clampPopup = function (el) {
+        try {
+            var w = el.offsetWidth || 400;
+            var h = el.offsetHeight || 300;
+            var m = 8;
+            var L = parseInt(el.style.left, 10) || 0;
+            var T = parseInt(el.style.top, 10) || 0;
+            var maxL = window.innerWidth - w - m;
+            var maxT = window.innerHeight - h - m;
+            if (L < m) L = m;
+            if (T < m) T = m;
+            if (L > maxL) L = Math.max(m, maxL);
+            if (T > maxT) T = Math.max(m, maxT);
+            el.style.left = L + "px";
+            el.style.top = T + "px";
+        } catch (e) {}
+    };
+}
 
 function T(s) {
     return typeof window.animaTxt === "function" ? window.animaTxt(s) : (s || "");
@@ -60,6 +81,66 @@ function animaArtistTag(raw) {
     t = t.replace(/(?<!\\)\(/g, "\\(").replace(/(?<!\\)\)/g, "\\)");
     t = t.replace(/(?<!\\)\[/g, "\\[").replace(/(?<!\\)\]/g, "\\]");
     return "@" + t;
+}
+
+function outWeight(raw) {
+    var n = Number(raw);
+    if (!isFinite(n)) return 1;
+    n = Math.round(n * 10) / 10;
+    if (window.animaHasWeight && !window.animaHasWeight(n)) return 1;
+    if (!window.animaHasWeight && Math.abs(n - 1) <= 0.01) return 1;
+    return n;
+}
+
+function outToken(tag, weight) {
+    var base = animaArtistTag(tag) || normTag(tag);
+    if (!base) return "";
+    var w = outWeight(weight);
+    if (window.animaFmtWeightTag) return window.animaFmtWeightTag(base, w);
+    if (Math.abs(w - 1) > 0.01) return "(" + base + ":" + w.toFixed(1) + ")";
+    return base;
+}
+
+function cleanWeightMap(raw) {
+    var out = {};
+    if (!raw || typeof raw !== "object") return out;
+    Object.keys(raw).forEach(function (k) {
+        var n = outWeight(raw[k]);
+        var key = keyOf(k);
+        if (!key || Math.abs(n - 1) <= 0.01) return;
+        out[key] = n;
+    });
+    return out;
+}
+
+function pickedWeights(tags, raw) {
+    var map = cleanWeightMap(raw);
+    var out = {};
+    (tags || []).forEach(function (t) {
+        var k = keyOf(t);
+        if (k && map[k]) out[k] = map[k];
+    });
+    return out;
+}
+
+function sameWeights(tags, a, b) {
+    var left = pickedWeights(tags, a);
+    var right = pickedWeights(tags, b);
+    var keys = Object.keys(left);
+    if (keys.length !== Object.keys(right).length) return false;
+    for (var i = 0; i < keys.length; i++) {
+        if (Math.abs(left[keys[i]] - right[keys[i]]) > 0.01) return false;
+    }
+    return true;
+}
+
+function cleanHiddenMap(raw) {
+    var out = {};
+    if (!raw || typeof raw !== "object") return out;
+    Object.keys(raw).forEach(function (k) {
+        if (k && raw[k]) out[String(k)] = 1;
+    });
+    return out;
 }
 
 var APICK_CHIBI = '<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="26" r="14" fill="#f6c7b2"/><path d="M20 24c1-9 7-14 12-14s11 5 12 14c-3-2-7-3-12-3s-9 1-12 3z" fill="#6b4a36"/><circle cx="27" cy="26" r="1.7" fill="#3a2a22"/><circle cx="37" cy="26" r="1.7" fill="#3a2a22"/><path d="M30 30.5c.8 1 3.2 1 4 0" stroke="#e08b90" stroke-width="1.3" fill="none" stroke-linecap="round"/><ellipse cx="23.5" cy="29" rx="2" ry="1.2" fill="#f3a3ab"/><ellipse cx="40.5" cy="29" rx="2" ry="1.2" fill="#f3a3ab"/><path d="M24 42c0-4 3.2-6 8-6s8 2 8 6v6H24z" fill="#8eb4ff"/><path d="M22 48h20v3.5a3.5 3.5 0 0 1-3.5 3.5h-13A3.5 3.5 0 0 1 22 51.5z" fill="#6d94e6"/></svg>';
@@ -301,7 +382,13 @@ function openComboSave(node) {
         var list = (node._apCombos || []).slice();
         var dup = list.some(function (c) { return c && String(c.name || "") === name; });
         if (dup) { err.textContent = T("这个名字已经有了"); return; }
-        list.unshift({ name: name, artists: tags.slice(), thumbs: [] });
+        var saved = node._apEnsure();
+        list.unshift({
+            name: name,
+            artists: tags.slice(),
+            thumbs: [],
+            weights: pickedWeights(tags, saved.weights)
+        });
         node._apCombos = list;
         var p = node._apEnsure();
         p.combo = name;
@@ -403,6 +490,86 @@ function openComboRename(node, combo) {
     mask.appendChild(box);
     document.body.appendChild(mask);
     setTimeout(function () { input.focus(); input.select(); }, 0);
+}
+function openComboDelete(node, combo) {
+    if (!node || !combo) return;
+    var old = document.getElementById("apick-rename-mask");
+    if (old) old.remove();
+    var mask = document.createElement("div");
+    mask.id = "apick-rename-mask";
+    mask.className = "apick-rename-mask";
+    var box = document.createElement("div");
+    box.className = "apick-rename";
+    var title = document.createElement("h3");
+    title.textContent = T("删除这个组合");
+    var msg = document.createElement("div");
+    msg.className = "apick-rename-msg";
+    msg.textContent = combo.name || T("组合");
+    var row = document.createElement("div");
+    row.className = "apick-rename-row";
+    var cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "act";
+    cancel.textContent = T("取消");
+    var ok = document.createElement("button");
+    ok.type = "button";
+    ok.className = "danger";
+    ok.textContent = T("删除");
+    function close() {
+        document.removeEventListener("keydown", onKey, true);
+        if (mask.parentNode) mask.parentNode.removeChild(mask);
+    }
+    function onKey(ev) {
+        if (ev.key !== "Escape") return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        close();
+    }
+    function commit() {
+        var list = (node._apCombos || []).slice();
+        var idx = list.indexOf(combo);
+        if (idx < 0) {
+            var wantName = String(combo.name || "");
+            var wantArts = (combo.artists || []).join("\n");
+            idx = list.findIndex(function (c) {
+                return c && String(c.name || "") === wantName && (c.artists || []).join("\n") === wantArts;
+            });
+        }
+        if (idx < 0) { close(); return; }
+        var name = String((list[idx] && list[idx].name) || "");
+        list.splice(idx, 1);
+        node._apCombos = list;
+        var nodes = (app.graph && app.graph._nodes) || [];
+        nodes.forEach(function (n) {
+            if (!n || n.type !== "ArtistPicker" || typeof n._apEnsure !== "function") return;
+            var p = n._apEnsure();
+            if (name && p.combo === name) {
+                p.combo = "";
+                n._apWrite(true);
+            }
+            n._apComboSig = "";
+        });
+        if (window.animaPublishArtistCombos) window.animaPublishArtistCombos(list);
+        node._apComboSig = "";
+        if (typeof node._apRenderCombos === "function") node._apRenderCombos();
+        close();
+    }
+    cancel.addEventListener("click", function (ev) { ev.preventDefault(); ev.stopPropagation(); close(); });
+    ok.addEventListener("click", function (ev) { ev.preventDefault(); ev.stopPropagation(); commit(); });
+    mask.addEventListener("mousedown", function (ev) {
+        ev.stopPropagation();
+        if (ev.target === mask) close();
+    });
+    box.addEventListener("mousedown", function (ev) { ev.stopPropagation(); });
+    document.addEventListener("keydown", onKey, true);
+    row.appendChild(cancel);
+    row.appendChild(ok);
+    box.appendChild(title);
+    box.appendChild(msg);
+    box.appendChild(row);
+    mask.appendChild(box);
+    document.body.appendChild(mask);
+    setTimeout(function () { cancel.focus(); }, 0);
 }
 function bindArtistMenu(el, tag, extra) {
     if (!el) return;
@@ -535,14 +702,14 @@ var APICK_ICO_EYE = "<svg viewBox=\"0 0 16 16\" fill=\"none\"><path d=\"M1.4 8s2
 var APICK_ICO_EYE_OFF = "<svg viewBox=\"0 0 16 16\" fill=\"none\"><path d=\"M2.2 8.2c1.5-2.4 3.4-3.6 5.8-3.6 1.3 0 2.5.4 3.6 1.1\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"round\"/><path d=\"M13.8 7.6c.3.5.4.8.4 1.1 0 0-2.2 3.6-6.2 3.6-1.2 0-2.3-.3-3.3-.9\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"round\"/><path d=\"M3.1 13.1 12.9 3.3\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"round\"/></svg>";
 
 function injectStyles() {
-    ["apick-styles-v1", "apick-styles-v2", "apick-styles-v3", "apick-styles-v4", "apick-styles-v5", "apick-styles-v6", "apick-styles-v7", "apick-styles-v8", "apick-styles-v9", "apick-styles-v10", "apick-styles-v11", "apick-styles-v12", "apick-styles-v13", "apick-styles-v14", "apick-styles-v15", "apick-styles-v16", "apick-styles-v17", "apick-styles-v18", "apick-styles-v19", "apick-styles-v20"].forEach(function (id) {
+    ["apick-styles-v1", "apick-styles-v2", "apick-styles-v3", "apick-styles-v4", "apick-styles-v5", "apick-styles-v6", "apick-styles-v7", "apick-styles-v8", "apick-styles-v9", "apick-styles-v10", "apick-styles-v11", "apick-styles-v12", "apick-styles-v13", "apick-styles-v14", "apick-styles-v15", "apick-styles-v16", "apick-styles-v17", "apick-styles-v18", "apick-styles-v19", "apick-styles-v20", "apick-styles-v21"].forEach(function (id) {
         var old = document.getElementById(id);
-        if (old && old.dataset.rev !== "20") old.remove();
+        if (old && old.dataset.rev !== "21") old.remove();
     });
-    if (document.getElementById("apick-styles-v20")) return;
+    if (document.getElementById("apick-styles-v21")) return;
     var s = document.createElement("style");
-    s.id = "apick-styles-v20";
-    s.dataset.rev = "20";
+    s.id = "apick-styles-v21";
+    s.dataset.rev = "21";
     s.textContent = [
         ".apick-host{overflow:hidden!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important;}",
         ".apick-wrap{display:flex;flex-direction:column;width:100%;height:100%;min-width:0;min-height:0;max-width:100%;overflow:hidden;box-sizing:border-box;position:relative;",
@@ -637,15 +804,20 @@ function injectStyles() {
         ".apick-name{font-size:11px;line-height:1.25;margin-top:4px;min-height:14px;max-height:2.5em;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;white-space:normal;overflow-wrap:anywhere;color:rgba(255,255,255,.84);}",
         ".apick-tile.on .apick-name,.apick-chip .apick-name{color:rgba(255,255,255,.96);}",
         ".apick-x{position:absolute;top:4px;right:4px;z-index:3;width:18px;height:18px;border:0;border-radius:50%;padding:0;background:rgba(0,0,0,.62);color:#fff;font-size:13px;line-height:16px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .12s ease;}",
-        ".apick-tile:hover .apick-x,.apick-chip:hover .apick-x{opacity:1;pointer-events:auto;}",
+        ".apick-tile:hover .apick-x,.apick-chip:hover .apick-x,.apick-chip:hover .apick-eye{opacity:1;pointer-events:auto;}",
         ".apick-x:hover{background:rgba(180,40,60,.9);}",
+        ".apick-eye{position:absolute;top:4px;left:4px;z-index:3;width:18px;height:18px;border:0;border-radius:50%;padding:0;background:rgba(0,0,0,.62);color:#fff;cursor:pointer;opacity:0;pointer-events:none;display:inline-flex;align-items:center;justify-content:center;transition:opacity .12s ease;}",
+        ".apick-eye svg{width:12px;height:12px;display:block;pointer-events:none;}",
+        ".apick-eye:hover{background:rgba(var(--anima-accent-rgb),.85);}",
+        ".apick-chip.is-hidden .apick-thumb,.apick-chip.is-hidden .apick-chibi,.apick-chip.is-hidden .apick-name{opacity:.38;}",
         ".apick-add{box-sizing:border-box;flex:0 0 36px;width:36px;height:36px;margin:24px 0 0;padding:0;border-radius:10px;border:1px solid rgba(var(--anima-accent-rgb),.7);background:rgba(var(--anima-accent-rgb),.34);color:#fff;font:inherit;font-size:22px;font-weight:650;line-height:34px;cursor:pointer;box-shadow:0 0 0 1px rgba(var(--anima-accent-rgb),.28);}",
         ".apick-add:hover{background:rgba(var(--anima-accent-rgb),.58);color:#fff;}",
         ".apick-foot{flex-shrink:0;margin:4px 10px 8px;padding:6px 2px 0;border-top:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.62);font-size:11px;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
-        ".apick-mask{position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.48);display:flex;align-items:center;justify-content:center;}",
-        ".apick-panel{width:min(760px,92vw);height:min(680px,86vh);display:flex;flex-direction:column;min-height:0;box-sizing:border-box;padding:14px;border-radius:16px;border:1px solid rgba(var(--anima-accent-rgb),.32);",
+        ".apick-mask{position:fixed;inset:0;z-index:100000;pointer-events:none;background:transparent;}",
+        ".apick-panel{position:fixed;pointer-events:auto;width:760px;height:680px;min-width:360px;min-height:320px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);resize:both;overflow:hidden;display:flex;flex-direction:column;min-height:320px;box-sizing:border-box;padding:14px;border-radius:16px;border:1px solid rgba(var(--anima-accent-rgb),.32);",
         "background:linear-gradient(180deg,var(--anima-well) 0%,var(--anima-bg-deep) 80%);box-shadow:0 22px 56px rgba(0,0,0,.5);}",
-        ".apick-panel-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;font-weight:700;}",
+        ".apick-panel-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;font-weight:700;cursor:grab;user-select:none;}",
+        ".apick-panel-h:active{cursor:grabbing;}",
         ".apick-panel .apick-search{margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,.1);}",
         ".apick-sorts{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 8px;flex-shrink:0;}",
         ".apick-sort{border:1px solid transparent;background:transparent;color:rgba(255,255,255,.48);font:inherit;font-size:11px;line-height:1.2;padding:4px 8px;border-radius:999px;cursor:pointer;}",
@@ -674,7 +846,13 @@ function injectStyles() {
         ".apick-rename-row{display:flex;justify-content:flex-end;gap:8px;}",
         ".apick-rename-row button{border:0;border-radius:8px;padding:6px 12px;font:inherit;font-size:12px;cursor:pointer;}",
         ".apick-rename-row .act{background:transparent;color:rgba(255,255,255,.75);}",
-        ".apick-rename-row .go{background:rgba(var(--anima-accent-rgb),.85);color:#fff;}"
+        ".apick-rename-row .go{background:rgba(var(--anima-accent-rgb),.85);color:#fff;}",
+        ".apick-rename-row .danger{background:rgba(180,40,60,.92);color:#fff;}",
+        ".apick-rename-msg{margin:0;font-size:12px;line-height:1.45;color:rgba(255,255,255,.82);word-break:break-all;}",
+        ".apick-combo{position:relative;}",
+        ".apick-combo-x{position:absolute;top:4px;right:4px;z-index:4;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.62);color:#fff;font-size:13px;line-height:18px;text-align:center;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .12s ease;}",
+        ".apick-combo:hover .apick-combo-x{opacity:1;pointer-events:auto;}",
+        ".apick-combo-x:hover{background:rgba(180,40,60,.9);}"
     ].join("");
     document.head.appendChild(s);
 }
@@ -799,7 +977,7 @@ function makeFace(item, opts) {
     opts = opts || {};
     var face = document.createElement("div");
     face.className = "apick-face";
-    bindArtistMenu(face, item && item.tag, opts.menu);
+    if (!opts.noSiteMenu) bindArtistMenu(face, item && item.tag, opts.menu);
     var src = thumbSrc(item, opts.tiny ? "tiny" : "mid");
     if (!src) {
         face.appendChild(makeChibi());
@@ -834,6 +1012,10 @@ function makeX(title, onClick) {
         e.stopPropagation();
         holdThumbHover();
     });
+    x.addEventListener("contextmenu", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    });
     x.addEventListener("click", function (e) {
         e.preventDefault();
         e.stopPropagation();
@@ -841,6 +1023,31 @@ function makeX(title, onClick) {
         onClick();
     });
     return x;
+}
+
+function makeEye(title, onClick) {
+    var eye = document.createElement("button");
+    eye.type = "button";
+    eye.className = "apick-eye";
+    eye.title = title;
+    eye.setAttribute("aria-label", title);
+    eye.innerHTML = APICK_ICO_EYE;
+    eye.addEventListener("mousedown", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        holdThumbHover();
+    });
+    eye.addEventListener("contextmenu", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+    eye.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        holdThumbHover();
+        onClick();
+    });
+    return eye;
 }
 
 if (!window.__apickComboWatch) {
@@ -972,6 +1179,8 @@ app.registerExtension({
             if (!Array.isArray(p.selected)) p.selected = [];
             if (typeof p.combo !== "string") p.combo = "";
             if (typeof p.seeded !== "boolean") p.seeded = false;
+            if (!p.weights || typeof p.weights !== "object") p.weights = {};
+            if (!p.hidden || typeof p.hidden !== "object") p.hidden = {};
             return p;
         };
 
@@ -1010,7 +1219,9 @@ app.registerExtension({
                 selected: selected,
                 combo: src.combo || "",
                 seeded: seeded,
-                extra: Array.isArray(src.extra) ? src.extra : []
+                extra: Array.isArray(src.extra) ? src.extra : [],
+                weights: cleanWeightMap(src.weights),
+                hidden: cleanHiddenMap(src.hidden)
             };
             this._apStripSig = "";
             this._apRosterSig = "";
@@ -1026,22 +1237,132 @@ app.registerExtension({
         nodeType.prototype._apWrite = function (fromUser) {
             var p = this._apEnsure();
             p.selected = dedupeTags(p.selected);
+            this._apPruneFlags();
             var data = {
                 roster: p.roster,
                 selected: p.selected,
                 combo: p.combo || "",
-                seeded: !!p.seeded
+                seeded: !!p.seeded,
+                weights: p.weights,
+                hidden: p.hidden
             };
             this.properties.picker = data;
             if (p.extra) data.extra = p.extra;
-            var text = p.selected.join(", ");
-            var json = JSON.stringify({ roster: data.roster, selected: data.selected, combo: data.combo, seeded: data.seeded });
+            var text = this._apOutputText();
+            var json = JSON.stringify({
+                roster: data.roster,
+                selected: data.selected,
+                combo: data.combo,
+                seeded: data.seeded,
+                weights: data.weights,
+                hidden: data.hidden
+            });
             var w = this._apWidgets();
             if (w.tags && w.tags.value !== text) w.tags.value = text;
             if (w.state && w.state.value !== json) w.state.value = json;
             if (fromUser) {
                 try { if (app.graph && typeof app.graph.change === "function") app.graph.change(); } catch (e) {}
             }
+        };
+
+        nodeType.prototype._apPruneFlags = function () {
+            var p = this._apEnsure();
+            var keep = {};
+            (p.selected || []).forEach(function (t) {
+                var k = keyOf(t);
+                if (k) keep[k] = 1;
+            });
+            var weights = {};
+            Object.keys(p.weights || {}).forEach(function (k) {
+                if (!keep[k]) return;
+                var n = outWeight(p.weights[k]);
+                if (Math.abs(n - 1) > 0.01) weights[k] = n;
+            });
+            var hidden = {};
+            Object.keys(p.hidden || {}).forEach(function (k) {
+                if (keep[k] && p.hidden[k]) hidden[k] = 1;
+            });
+            p.weights = weights;
+            p.hidden = hidden;
+        };
+
+        nodeType.prototype._apOutputText = function () {
+            var p = this._apEnsure();
+            var parts = [];
+            (p.selected || []).forEach(function (tag) {
+                var k = keyOf(tag);
+                if (k && p.hidden && p.hidden[k]) return;
+                var token = outToken(tag, p.weights && p.weights[k]);
+                if (token) parts.push(token);
+            });
+            return parts.join(", ");
+        };
+
+        nodeType.prototype._apWeightOf = function (tag) {
+            var p = this._apEnsure();
+            var k = keyOf(tag);
+            return outWeight(p.weights && p.weights[k]);
+        };
+
+        nodeType.prototype._apStripSigValue = function () {
+            var p = this._apEnsure();
+            var bits = (p.selected || []).map(function (t) {
+                var k = keyOf(t);
+                var w = p.weights && p.weights[k];
+                var h = p.hidden && p.hidden[k] ? "h" : "";
+                return k + (w ? "=" + w : "") + h;
+            });
+            return "s:" + (this._apFavReady ? "1" : "0") + ":" + bits.join("|");
+        };
+
+        nodeType.prototype._apPaintChip = function (tag) {
+            var strip = this._apStrip;
+            if (!strip) return;
+            var k = keyOf(tag);
+            var chip = null;
+            strip.querySelectorAll(".apick-chip").forEach(function (el) {
+                if (!chip && keyOf(el.dataset.tag) === k) chip = el;
+            });
+            if (!chip) return;
+            var hidden = !!(this._apEnsure().hidden && this._apEnsure().hidden[k]);
+            var w = this._apWeightOf(tag);
+            var weighted = Math.abs(w - 1) > 0.01;
+            chip.classList.toggle("is-hidden", hidden);
+            var name = chip.querySelector(".apick-name");
+            if (name) name.textContent = showName(tag) + (weighted ? " " + w.toFixed(1) : "");
+            var eye = chip.querySelector(".apick-eye");
+            if (eye) {
+                var title = hidden ? T("显示这个画师") : T("暂时隐藏");
+                eye.title = title;
+                eye.setAttribute("aria-label", title);
+                eye.innerHTML = hidden ? APICK_ICO_EYE_OFF : APICK_ICO_EYE;
+            }
+            this._apStripSig = this._apStripSigValue();
+        };
+
+        nodeType.prototype._apSetWeight = function (tag, nw) {
+            var p = this._apEnsure();
+            var k = keyOf(tag);
+            if (!k) return;
+            var n = outWeight(window.animaClampWeight ? window.animaClampWeight(nw) : nw);
+            if (Math.abs(n - 1) <= 0.01) delete p.weights[k];
+            else p.weights[k] = n;
+            this._apSyncCombo();
+            this._apPaintChip(tag);
+            this._apWrite(true);
+            this._apRenderFoot();
+            this._apMarkCombos();
+        };
+
+        nodeType.prototype._apToggleHide = function (tag) {
+            var p = this._apEnsure();
+            var k = keyOf(tag);
+            if (!k) return;
+            if (p.hidden[k]) delete p.hidden[k];
+            else p.hidden[k] = 1;
+            this._apPaintChip(tag);
+            this._apWrite(true);
+            this._apRenderFoot();
         };
 
         nodeType.prototype._apSyncCombo = function () {
@@ -1054,6 +1375,7 @@ app.registerExtension({
                 for (var i = 0; i < tags.length; i++) {
                     if (keyOf(tags[i]) !== keyOf(p.selected[i])) return;
                 }
+                if (!sameWeights(tags, p.weights, combo.weights)) return;
                 hit = combo.name || "";
             });
             p.combo = hit;
@@ -1312,20 +1634,26 @@ app.registerExtension({
         };
 
         nodeType.prototype._apAdd = function (item) {
-            if (!this._apAbsorb(item)) return;
+            if (!this._apAbsorb(item)) {
+                this._apMarkAddGrid();
+                return;
+            }
             this._apSyncCombo();
             this._apWrite(true);
             this._apRender();
+            this._apMarkAddGrid();
         };
 
         nodeType.prototype._apAddMany = function (items) {
             var self = this;
             var changed = false;
             (items || []).forEach(function (item) { if (self._apAbsorb(item)) changed = true; });
-            if (!changed) return;
-            this._apSyncCombo();
-            this._apWrite(true);
-            this._apRender();
+            if (changed) {
+                this._apSyncCombo();
+                this._apWrite(true);
+                this._apRender();
+            }
+            this._apMarkAddGrid();
         };
 
         nodeType.prototype._apToggleOut = function (tag) {
@@ -1350,6 +1678,7 @@ app.registerExtension({
             this._apSyncCombo();
             this._apWrite(true);
             this._apRender();
+            this._apMarkAddGrid();
         };
 
         nodeType.prototype._apDropOut = function (tag) {
@@ -1391,6 +1720,7 @@ app.registerExtension({
                 p.roster.push(self._apItem(t));
             });
             p.selected = tags.slice();
+            p.weights = pickedWeights(tags, combo.weights);
             p.combo = combo.name || "";
             this._apWrite(true);
             this._apRender();
@@ -1836,6 +2166,19 @@ app.registerExtension({
                     });
                     foot.appendChild(nm);
                     foot.appendChild(see);
+                    var del = document.createElement("span");
+                    del.className = "apick-combo-x";
+                    del.textContent = "×";
+                    del.title = T("删除这个组合");
+                    del.setAttribute("role", "button");
+                    del.setAttribute("aria-label", del.title);
+                    del.addEventListener("mousedown", function (ev) { ev.preventDefault(); ev.stopPropagation(); });
+                    del.addEventListener("click", function (ev) {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        openComboDelete(self, combo);
+                    });
+                    b.appendChild(del);
                     var who = people.map(function (p) { return showName(p.tag); }).filter(Boolean);
                     b.title = who.length ? ((combo.name || "") + " · " + who.join(" · ")) : (combo.name || "");
                     b.appendChild(pics);
@@ -1890,7 +2233,7 @@ app.registerExtension({
                 strip._apSort = window.Sortable.create(strip, {
                     animation: 140,
                     draggable: ".apick-chip",
-                    filter: ".apick-x",
+                    filter: ".apick-x, .apick-eye",
                     preventOnFilter: true,
                     forceFallback: true,
                     fallbackOnBody: true,
@@ -2006,7 +2349,7 @@ app.registerExtension({
             });
             var p = this._apEnsure();
             p.selected = dedupeTags(order);
-            this._apStripSig = "s:" + (this._apFavReady ? "1" : "0") + ":" + p.selected.join("|");
+            this._apStripSig = this._apStripSigValue();
             this._apSyncCombo();
             this._apWrite(true);
             this._apMarkCombos();
@@ -2018,7 +2361,7 @@ app.registerExtension({
             var strip = this._apStrip;
             if (!strip) return;
             var p = this._apEnsure();
-            var sig = "s:" + (this._apFavReady ? "1" : "0") + ":" + p.selected.join("|");
+            var sig = this._apStripSigValue();
             if (this._apSaveComboBtn) this._apSaveComboBtn.hidden = !p.selected.length;
             if (this._apClearOutBtn) this._apClearOutBtn.hidden = !p.selected.length;
             if (this._apStripSig === sig) return;
@@ -2037,18 +2380,32 @@ app.registerExtension({
             var self = this;
             p.selected.forEach(function (tag) {
                 var item = self._apItem(tag);
+                var hidden = !!(p.hidden && p.hidden[keyOf(tag)]);
+                var w = outWeight(p.weights && p.weights[keyOf(tag)]);
+                var weighted = Math.abs(w - 1) > 0.01;
                 var chip = document.createElement("div");
-                chip.className = "apick-chip";
+                chip.className = "apick-chip" + (hidden ? " is-hidden" : "");
                 chip.dataset.tag = item.tag;
                 chip.title = T("拖动可调整顺序");
-                bindArtistMenu(chip, item.tag);
-                var face = makeFace(item);
+                var face = makeFace(item, { noSiteMenu: true });
+                face.appendChild(makeEye(hidden ? T("显示这个画师") : T("暂时隐藏"), function () { self._apToggleHide(item.tag); }));
+                var eye = face.querySelector(".apick-eye");
+                if (eye && hidden) eye.innerHTML = APICK_ICO_EYE_OFF;
                 face.appendChild(makeX(T("移出这次输出"), function () { self._apDropOut(item.tag); }));
                 var name = document.createElement("div");
                 name.className = "apick-name";
-                name.textContent = showName(item.tag);
+                name.textContent = showName(item.tag) + (weighted ? " " + w.toFixed(1) : "");
                 chip.appendChild(face);
                 chip.appendChild(name);
+                if (typeof window.animaBindChipFlyout === "function") {
+                    window.animaBindChipFlyout(chip, {
+                        hover: false,
+                        rightClick: true,
+                        ignore: ".apick-x, .apick-eye",
+                        getWeight: function () { return self._apWeightOf(item.tag); },
+                        setWeight: function (nw) { self._apSetWeight(item.tag, nw); }
+                    });
+                }
                 strip.appendChild(chip);
             });
             strip.scrollLeft = left;
@@ -2148,8 +2505,14 @@ app.registerExtension({
                 return;
             }
             foot.style.display = "";
-            foot.textContent = selected.join(", ");
-            foot.title = selected.join(", ");
+            var text = this._apOutputText();
+            if (!text) {
+                foot.textContent = T("这次没有输出");
+                foot.title = foot.textContent;
+                return;
+            }
+            foot.textContent = text;
+            foot.title = text;
         };
 
         nodeType.prototype._apOnSearch = function () {
@@ -2314,12 +2677,37 @@ app.registerExtension({
             return this._apFavRanked;
         };
 
-        nodeType.prototype._apFavCard = function (tile, sel) {
+        nodeType.prototype._apMarkAddGrid = function () {
+            var grid = this._apFavGrid;
+            if (!grid || !this._apMask) return;
+            var have = {};
+            (this._apEnsure().roster || []).forEach(function (x) {
+                var k = keyOf(x.tag);
+                if (k) have[k] = 1;
+            });
+            var note = T("已在候选区");
+            grid.querySelectorAll(".apick-tile[data-tag]").forEach(function (el) {
+                var on = !!have[keyOf(el.dataset.tag)];
+                el.classList.toggle("on", on);
+                var base = el.dataset.label || "";
+                el.title = on && base ? (base + " · " + note) : base;
+            });
+        };
+
+        nodeType.prototype._apFavCard = function (tile) {
             var self = this;
             var b = document.createElement("button");
             b.type = "button";
-            b.className = "apick-tile" + (sel[keyOf(tile.tag)] ? " on" : "");
-            b.title = tile.cn ? (tile.cn + " · " + showName(tile.tag)) : showName(tile.tag);
+            var base = tile.cn ? (tile.cn + " · " + showName(tile.tag)) : showName(tile.tag);
+            var inRoster = false;
+            var k = keyOf(tile.tag);
+            (this._apEnsure().roster || []).forEach(function (x) {
+                if (!inRoster && keyOf(x.tag) === k) inRoster = true;
+            });
+            b.className = "apick-tile" + (inRoster ? " on" : "");
+            b.dataset.tag = tile.tag;
+            b.dataset.label = base;
+            b.title = inRoster ? (base + " · " + T("已在候选区")) : base;
             b.appendChild(makeFace(tile, { tiny: true, lazy: true }));
             var name = document.createElement("div");
             name.className = "apick-name";
@@ -2361,6 +2749,26 @@ app.registerExtension({
             close.addEventListener("click", shut);
             bar.appendChild(title);
             bar.appendChild(close);
+            bar.addEventListener("mousedown", function (e) {
+                if (e.button !== 0) return;
+                if (e.target && e.target.closest && e.target.closest("button")) return;
+                e.preventDefault();
+                var rect = panel.getBoundingClientRect();
+                var dx = e.clientX - rect.left;
+                var dy = e.clientY - rect.top;
+                function move(ev) {
+                    panel.style.left = (ev.clientX - dx) + "px";
+                    panel.style.top = (ev.clientY - dy) + "px";
+                    if (window.clampPopup) window.clampPopup(panel);
+                }
+                function up() {
+                    document.removeEventListener("mousemove", move);
+                    document.removeEventListener("mouseup", up);
+                    saveBox();
+                }
+                document.addEventListener("mousemove", move);
+                document.addEventListener("mouseup", up);
+            });
             var tabs = document.createElement("div");
             tabs.className = "apick-sorts";
             [
@@ -2492,11 +2900,55 @@ app.registerExtension({
             panel.appendChild(hint);
             panel.appendChild(grid);
             mask.appendChild(panel);
-            mask.addEventListener("mousedown", function (e) {
-                if (e.target !== mask) return;
+            function saveBox() {
+                if (!panel.isConnected) return;
+                var r = panel.getBoundingClientRect();
+                if (r.width < 200 || r.height < 160) return;
+                try {
+                    localStorage.setItem("apick_add_box", JSON.stringify({
+                        l: Math.round(r.left),
+                        t: Math.round(r.top),
+                        w: Math.round(r.width),
+                        h: Math.round(r.height)
+                    }));
+                } catch (e) {}
+            }
+            function placeBox() {
+                var box = null;
+                try { box = JSON.parse(localStorage.getItem("apick_add_box") || ""); } catch (e) { box = null; }
+                var maxW = Math.max(360, window.innerWidth - 16);
+                var maxH = Math.max(320, window.innerHeight - 16);
+                var w = box && isFinite(box.w) ? Number(box.w) : Math.min(760, maxW);
+                var h = box && isFinite(box.h) ? Number(box.h) : Math.min(680, maxH);
+                w = Math.max(360, Math.min(w, maxW));
+                h = Math.max(320, Math.min(h, maxH));
+                var left = box && isFinite(box.l) ? Number(box.l) : Math.max(8, (window.innerWidth - w) / 2);
+                var top = box && isFinite(box.t) ? Number(box.t) : Math.max(8, (window.innerHeight - h) / 2);
+                panel.style.width = Math.round(w) + "px";
+                panel.style.height = Math.round(h) + "px";
+                panel.style.left = Math.round(left) + "px";
+                panel.style.top = Math.round(top) + "px";
+            }
+            placeBox();
+            function onUp() { saveBox(); }
+            function onKey(ev) {
+                if (ev.key !== "Escape" || !mask.isConnected) return;
+                ev.preventDefault();
                 shut();
-            });
+            }
+            document.addEventListener("mouseup", onUp);
+            document.addEventListener("keydown", onKey, true);
+            var oldShut = shut;
+            shut = function () {
+                document.removeEventListener("mouseup", onUp);
+                document.removeEventListener("keydown", onKey, true);
+                saveBox();
+                oldShut();
+            };
+            close.removeEventListener("click", oldShut);
+            close.addEventListener("click", shut);
             document.body.appendChild(mask);
+            if (window.clampPopup) window.clampPopup(panel);
             this._apMask = mask;
             this._apFavGrid = grid;
             this._apAddTabs = tabs;
