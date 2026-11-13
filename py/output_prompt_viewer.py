@@ -4842,6 +4842,7 @@ _DRAG_STA_QUEUE = None
 _DRAG_STA_THREAD = None
 _DRAG_STA_READY = threading.Lock()
 _DRAG_SRC_HOLD = None
+_DRAG_USER32 = None
 _DRAG_ABORT = threading.Event()
 _DRAG_S_DROP = 0x00040100
 _DRAG_S_CANCEL = 0x00040101
@@ -4997,19 +4998,18 @@ def _win_drop_source():
 
 
 def _drag_user32():
-    user32 = ctypes.windll.user32
+    """本模块自己的 user32，参数表只绑一次。不要去改进程里共用的 windll.user32。"""
+    global _DRAG_USER32
+    if _DRAG_USER32 is not None:
+        return _DRAG_USER32
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
     user32.GetCursorPos.argtypes = [ctypes.c_void_p]
     user32.GetCursorPos.restype = ctypes.c_bool
     user32.PeekMessageW.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint]
     user32.PeekMessageW.restype = ctypes.c_bool
     user32.PostThreadMessageW.argtypes = [ctypes.c_uint32, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
     user32.PostThreadMessageW.restype = ctypes.c_bool
-    user32.GetForegroundWindow.argtypes = []
-    user32.GetForegroundWindow.restype = ctypes.c_void_p
-    user32.GetWindowThreadProcessId.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-    user32.GetWindowThreadProcessId.restype = ctypes.c_uint32
-    user32.AttachThreadInput.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_bool]
-    user32.AttachThreadInput.restype = ctypes.c_bool
+    _DRAG_USER32 = user32
     return user32
 
 
@@ -5095,7 +5095,10 @@ def _win_drag_files_sta(paths):
                 ("pt_x", ctypes.c_long),
                 ("pt_y", ctypes.c_long),
             ]
-        user32.PeekMessageW(ctypes.addressof(_MSG()), None, 0, 0, 0)
+        msg = _MSG()
+        # msg 必须活过这次调用。addressof(_MSG()) 会在写入前被回收，系统消息写进已释放内存。
+        while user32.PeekMessageW(ctypes.addressof(msg), None, 0, 0, 1):
+            pass
         if not _left_button_down():
             return False, ""
         data, pidls = _win_drag_data_object(paths[0])
@@ -6381,7 +6384,31 @@ def _heart_ok(got, want):
     return got_n == want
 
 
-def list_img_favs(page=1, page_size=24, artist="", solo=False, series="", character="", tag="", sort="newest", heart=0, model="", exact=False):
+def _anchor_pair(anchor_name, anchor_sub):
+    name = os.path.basename(str(anchor_name or "").strip())
+    sub = str(anchor_sub or "").replace("\\", "/").strip("/")
+    return name, sub
+
+
+def _slice_rows_from_anchor(rows, anchor_name, anchor_sub, name_at, sub_at):
+    """Keep the anchor image and everything after it. None means no anchor was asked."""
+    name, sub = _anchor_pair(anchor_name, anchor_sub)
+    if not name:
+        return rows, None
+    for i, row in enumerate(rows):
+        got = str(row[sub_at] or "").replace("\\", "/").strip("/")
+        if row[name_at] == name and got == sub:
+            return rows[i:], True
+    return rows, False
+
+
+def _anchor_found_value(anchor_name, found):
+    if not _anchor_pair(anchor_name, "")[0]:
+        return None
+    return bool(found)
+
+
+def list_img_favs(page=1, page_size=24, artist="", solo=False, series="", character="", tag="", sort="newest", heart=0, model="", exact=False, anchor_name="", anchor_sub=""):
     root = _output_root()
     want_keys = artist_key_list(artist)
     want = ",".join(want_keys)
@@ -6446,6 +6473,7 @@ def list_img_favs(page=1, page_size=24, artist="", solo=False, series="", charac
         rows.sort(key=lambda x: (x[5], x[0], x[4]))
     else:
         rows.sort(key=lambda x: (-x[0], -x[1], x[4]))
+    rows, anchor_found = _slice_rows_from_anchor(rows, anchor_name, anchor_sub, 4, 3)
     total = len(rows)
     page_size = max(1, min(int(page_size or 24), 120))
     pages = max(1, (total + page_size - 1) // page_size)
@@ -6484,6 +6512,7 @@ def list_img_favs(page=1, page_size=24, artist="", solo=False, series="", charac
         "character": character_key,
         "tag": tag_key,
         "deep": True,
+        "anchor_found": _anchor_found_value(anchor_name, anchor_found),
     }
     fav_out.update(_list_extras(IMG_FAV_SUB))
     return fav_out
@@ -6542,7 +6571,7 @@ def stamp_img_favs():
     return out
 
 
-def list_output(subfolder="", page=1, page_size=24, artist="", solo=False, series="", character="", tag="", deep=True, sort="newest", heart=0, model="", exact=False):
+def list_output(subfolder="", page=1, page_size=24, artist="", solo=False, series="", character="", tag="", deep=True, sort="newest", heart=0, model="", exact=False, anchor_name="", anchor_sub=""):
     sort = _norm_sort(sort)
     heart = _norm_rate_filter(heart)
     try:
@@ -6552,7 +6581,7 @@ def list_output(subfolder="", page=1, page_size=24, artist="", solo=False, serie
     model_ids = model_id_list(model)
     model_q = ",".join(model_ids)
     if _is_img_fav_sub(subfolder):
-        return list_img_favs(page, page_size, artist, solo, series, character, tag, sort, heart, model_q, exact)
+        return list_img_favs(page, page_size, artist, solo, series, character, tag, sort, heart, model_q, exact, anchor_name, anchor_sub)
     root = _output_root()
     sub = _safe_sub(subfolder)
     folder = os.path.join(root, sub) if sub else root
@@ -6572,6 +6601,7 @@ def list_output(subfolder="", page=1, page_size=24, artist="", solo=False, serie
         "sort": sort,
         "heart": heart,
         "model": model_q,
+        "anchor_found": _anchor_found_value(anchor_name, False),
     }
     empty.update(_list_extras(sub))
     if _is_skipped_sub(sub):
@@ -6603,6 +6633,7 @@ def list_output(subfolder="", page=1, page_size=24, artist="", solo=False, serie
         rows.sort(key=lambda x: (x[4], x[1], x[0]))
     else:
         rows.sort(key=lambda x: (-x[1], x[0]))
+    rows, anchor_found = _slice_rows_from_anchor(rows, anchor_name, anchor_sub, 0, 3)
     total = len(rows)
     page_size = max(1, min(int(page_size or 24), 120))
     pages = max(1, (total + page_size - 1) // page_size)
@@ -6644,6 +6675,7 @@ def list_output(subfolder="", page=1, page_size=24, artist="", solo=False, serie
         "sort": sort,
         "heart": heart,
         "model": model_q,
+        "anchor_found": _anchor_found_value(anchor_name, anchor_found),
     }
     out.update(_list_extras(sub))
     return out
@@ -6936,7 +6968,9 @@ def register_routes():
             sort = _norm_sort(request.query.get("sort"))
             heart = _norm_rate_filter(request.query.get("heart"))
             model = request.query.get("model") or ""
-            data = await loop.run_in_executor(None, list_output, sub, page, page_size, artist, solo, series, character, tag, deep, sort, heart, model, exact)
+            anchor_name = request.query.get("anchor") or ""
+            anchor_sub = request.query.get("anchor_sub") or ""
+            data = await loop.run_in_executor(None, list_output, sub, page, page_size, artist, solo, series, character, tag, deep, sort, heart, model, exact, anchor_name, anchor_sub)
             return web.json_response(data)
         except Exception as e:
             return web.json_response({"ok": False, "error": str(e), "items": [], "folders": []}, status=200)
@@ -7428,6 +7462,11 @@ def _run_self_tests():
     check("model missing not other", not file_matches_filters({"artists": [], "tags": []}, model_ids=["other"]))
     check("rec ok without model", _index_rec_ok({"mtime": 1, "size": 2, "artists": [], "characters": [], "series": [], "tags": []}, 1, 2))
     check("sort default newest", _norm_sort("") == "newest" and _norm_sort("mtime") == "newest")
+    _rows_bm = [("c", 1, 1, "box", 0), ("b", 2, 1, "", 0), ("a", 3, 1, "", 0)]
+    _cut, _hit = _slice_rows_from_anchor(_rows_bm, "b", "", 0, 3)
+    check("flow bookmark anchor", _hit is True and [x[0] for x in _cut] == ["b", "a"], str([x[0] for x in _cut]))
+    _miss, _hit2 = _slice_rows_from_anchor(_rows_bm, "gone.png", "box", 0, 3)
+    check("flow bookmark missing", _hit2 is False and len(_miss) == 3, str(_hit2))
     check("sort oldest", _norm_sort("oldest") == "oldest")
     check("sort rating", _norm_sort("rating") == "rating" and _norm_sort("high") == "rating")
     check("sort rating_asc", _norm_sort("rating_asc") == "rating_asc")

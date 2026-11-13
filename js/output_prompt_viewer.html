@@ -2852,6 +2852,8 @@
       border-color: var(--accent);
     }
     .btn-browse svg { width: 22px; height: 22px; }
+    #btn-flow-bm { font-size: 18px; line-height: 1; width: 44px; height: 44px; }
+    .tile.is-bm { box-shadow: inset 0 0 0 2px var(--accent); }
     .flow-size {
       display: inline-flex;
       align-items: center;
@@ -8430,6 +8432,7 @@
       <div class="chrome-tools">
         <div class="tool-group">
           <button type="button" class="btn btn-icon btn-browse" id="btn-browse" aria-pressed="false"></button>
+          <button type="button" class="btn btn-icon" id="btn-flow-bm" title="书签">🔖</button>
           <label class="flow-size" id="flow-size-wrap" for="flow-size">
             <span id="flow-size-lab">图大小</span>
             <input type="range" id="flow-size" min="90" max="480" step="10" value="150">

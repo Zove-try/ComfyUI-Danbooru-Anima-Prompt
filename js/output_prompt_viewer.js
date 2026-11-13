@@ -365,7 +365,8 @@
         modelKey: readModelKey(), modelIndex: null, modelIndexSub: null, modelIndexBusy: false,
         tagIndex: null, tagIndexSub: null, tagIndexBusy: false, tagFuzzy: [],
         listDeep: readListDeep(),
-        heartRate: readHeartRate()
+        heartRate: readHeartRate(),
+        flowAnchor: null
     };
     var _tagColorCache = {};
     var _tlCache = {};
@@ -4232,6 +4233,620 @@
         return wrap;
     }
 
+    var _flowBmView = "all";
+    var _flowBmDelArm = "";
+
+    function flowBmStore() {
+        try {
+            var d = JSON.parse(localStorage.getItem("anima_opv_flow_bookmarks_v1") || "{}");
+            if (!d || typeof d !== "object") d = {};
+            if (!Array.isArray(d.items)) d.items = [];
+            if (!Array.isArray(d.folders)) d.folders = [];
+            return d;
+        } catch (eBm) { return { items: [], folders: [] }; }
+    }
+    function flowBmSave(d) {
+        try { localStorage.setItem("anima_opv_flow_bookmarks_v1", JSON.stringify(d)); } catch (eBm2) {}
+    }
+    function flowBmClean(name, n) {
+        return String(name || "").trim().replace(/\s+/g, " ").slice(0, n || 80);
+    }
+    function flowBmHeart(v) {
+        v = parseInt(v, 10);
+        if (v === -1) return -1;
+        if (v >= 1 && v <= 5) return v;
+        return 0;
+    }
+    function flowBmContext(it) {
+        return {
+            filename: (it && it.filename) || "",
+            subfolder: (it && it.subfolder) || "",
+            browseSub: state.subfolder || "",
+            deep: listDeepOn(),
+            sort: listSort(),
+            artistKey: state.artistKey || "",
+            artistExact: !!state.artistExact,
+            soloArtist: !!state.soloArtist,
+            seriesKey: state.seriesKey || "",
+            characterKey: state.characterKey || "",
+            tagKey: state.tagKey || "",
+            modelKey: state.modelKey || "",
+            heartRate: flowBmHeart(state.heartRate)
+        };
+    }
+    function flowBmSame(a, b) {
+        if (!a || !b) return false;
+        return a.filename === b.filename
+            && (a.subfolder || "") === (b.subfolder || "")
+            && (a.browseSub || "") === (b.browseSub || "")
+            && (a.deep !== false) === (b.deep !== false)
+            && (a.sort || "newest") === (b.sort || "newest")
+            && (a.artistKey || "") === (b.artistKey || "")
+            && !!a.artistExact === !!b.artistExact
+            && !!a.soloArtist === !!b.soloArtist
+            && (a.seriesKey || "") === (b.seriesKey || "")
+            && (a.characterKey || "") === (b.characterKey || "")
+            && (a.tagKey || "") === (b.tagKey || "")
+            && (a.modelKey || "") === (b.modelKey || "")
+            && flowBmHeart(a.heartRate) === flowBmHeart(b.heartRate);
+    }
+    function flowBmFind(row) {
+        var items = flowBmStore().items;
+        for (var i = 0; i < items.length; i++) if (flowBmSame(items[i], row)) return items[i];
+        return null;
+    }
+    function flowBmPlace(row) {
+        var folder = row && row.browseSub ? row.browseSub : T("输出目录");
+        var bits = [folder, sortLabel((row && row.sort) || "newest")];
+        if (row && row.deep === false) bits.push(T("不含子文件夹"));
+        if (row && (row.artistKey || row.soloArtist || row.seriesKey || row.characterKey || row.tagKey || row.modelKey || flowBmHeart(row.heartRate))) bits.push(T("含当前筛选"));
+        return bits.join(" · ");
+    }
+    function flowBmSkin(node) {
+        if (node && typeof window.applyAnimaPopupSkin === "function") window.applyAnimaPopupSkin(node);
+    }
+    function flowBmDrag(handle, panel) {
+        handle.style.cursor = "move";
+        handle.onmousedown = function (ev) {
+            if (ev.button !== 0) return;
+            var t = ev.target;
+            var tag = t && t.tagName ? String(t.tagName).toLowerCase() : "";
+            if (tag === "button" || tag === "input" || tag === "select" || tag === "textarea") return;
+            if (t && t.closest && t.closest("button, input, select, textarea")) return;
+            ev.preventDefault();
+            var r = panel.getBoundingClientRect();
+            var ox = ev.clientX - r.left;
+            var oy = ev.clientY - r.top;
+            function mv(e) {
+                panel.style.left = (e.clientX - ox) + "px";
+                panel.style.top = (e.clientY - oy) + "px";
+                panel.style.right = "auto";
+                if (window.clampPopup) window.clampPopup(panel);
+            }
+            function up() {
+                document.removeEventListener("mousemove", mv);
+                document.removeEventListener("mouseup", up);
+                if (panel.id === "opv-bm-pop") flowBmSaveWin(panel);
+            }
+            document.addEventListener("mousemove", mv);
+            document.addEventListener("mouseup", up);
+        };
+    }
+    function flowBmSaveWin(panel) {
+        try {
+            var r = panel.getBoundingClientRect();
+            localStorage.setItem("anima_opv_flow_bm_win", JSON.stringify({
+                left: Math.round(r.left), top: Math.round(r.top),
+                width: Math.round(r.width), height: Math.round(r.height)
+            }));
+        } catch (eWin) {}
+    }
+    function flowBmLoadWin() {
+        try {
+            var d = JSON.parse(localStorage.getItem("anima_opv_flow_bm_win") || "");
+            return (d && typeof d === "object") ? d : null;
+        } catch (eWin2) { return null; }
+    }
+    function flowBmAddFolder(name) {
+        var n = flowBmClean(name, 40);
+        if (!n) return null;
+        var d = flowBmStore();
+        if (d.folders.length >= 40) return null;
+        var row = { id: "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: n };
+        d.folders.push(row);
+        flowBmSave(d);
+        return row;
+    }
+    function flowBmUpsert(row) {
+        var d = flowBmStore();
+        var items = d.items;
+        var idx = -1;
+        for (var i = 0; i < items.length; i++) if (flowBmSame(items[i], row)) { idx = i; break; }
+        var prev = idx >= 0 ? items[idx] : null;
+        var saved = {
+            id: prev ? prev.id : (Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+            filename: row.filename,
+            subfolder: row.subfolder || "",
+            browseSub: row.browseSub || "",
+            deep: row.deep !== false,
+            sort: row.sort || "newest",
+            artistKey: row.artistKey || "",
+            artistExact: !!row.artistExact,
+            soloArtist: !!row.soloArtist,
+            seriesKey: row.seriesKey || "",
+            characterKey: row.characterKey || "",
+            tagKey: row.tagKey || "",
+            modelKey: row.modelKey || "",
+            heartRate: flowBmHeart(row.heartRate),
+            name: flowBmClean(row.name, 80) || (prev && prev.name) || row.filename,
+            folder: String(row.folder || ""),
+            thumb: row.thumb || (prev && prev.thumb) || "",
+            at: Date.now()
+        };
+        if (idx >= 0) items.splice(idx, 1);
+        items.unshift(saved);
+        if (items.length > 200) items.length = 200;
+        d.items = items;
+        flowBmSave(d);
+        return saved;
+    }
+    function flowBmRemove(id) {
+        var d = flowBmStore();
+        d.items = d.items.filter(function (x) { return x.id !== id; });
+        flowBmSave(d);
+    }
+    function flowBmRemoveFolder(id) {
+        var d = flowBmStore();
+        d.folders = d.folders.filter(function (f) { return f.id !== id; });
+        for (var i = 0; i < d.items.length; i++) if (String(d.items[i].folder || "") === String(id)) d.items[i].folder = "";
+        flowBmSave(d);
+    }
+    function writeFolderSort(folder, next) {
+        if (SORT_CYCLE.indexOf(next) < 0) next = "newest";
+        var map = readSortMap();
+        var k = String(folder || "");
+        if (next === "newest") delete map[k];
+        else map[k] = next;
+        try { localStorage.setItem(LS_SORT, JSON.stringify(map)); } catch (eSort) {}
+    }
+    function jumpFlowBookmark(bm) {
+        if (!bm || !bm.filename) return;
+        var pop = document.getElementById("opv-bm-pop");
+        if (pop) pop.remove();
+        var hover = document.getElementById("opv-bm-hover");
+        if (hover) hover.remove();
+        state.flowAnchor = { filename: bm.filename, subfolder: bm.subfolder || "" };
+        state.subfolder = bm.browseSub || "";
+        state.listDeep = bm.deep !== false;
+        try { localStorage.setItem(LS_LIST_DEEP, state.listDeep ? "1" : "0"); } catch (eDeep) {}
+        writeFolderSort(state.subfolder, bm.sort || "newest");
+        state.artistKey = bm.artistKey || "";
+        state.artistExact = !!bm.artistExact;
+        state.soloArtist = !!bm.soloArtist;
+        state.seriesKey = bm.seriesKey || "";
+        state.characterKey = bm.characterKey || "";
+        state.tagKey = bm.tagKey || "";
+        state.modelKey = bm.modelKey || "";
+        state.heartRate = flowBmHeart(bm.heartRate);
+        state.browse = "flow";
+        try { localStorage.setItem(LS_BROWSE, "flow"); } catch (eBr) {}
+        state.page = 1;
+        state.sel = null;
+        state.items = [];
+        closeLightbox();
+        _flowEnd = false;
+        _flowBusy = false;
+        _stampKey = "";
+        _refreshPending = false;
+        markRefreshPending(false);
+        try { delete _folderSnaps[state.subfolder || ""]; } catch (eSnap) {}
+        applyBrowseChrome();
+        syncFilterUi();
+        loadList({ keepAnchor: true });
+        toast(T("已跳到这张图"), 1400);
+    }
+    function openFlowBmAdd(it) {
+        if (!it || !it.filename) return;
+        var old = document.getElementById("opv-bm-name");
+        if (old) old.remove();
+        var ctx = flowBmContext(it);
+        var prev = flowBmFind(ctx) || {};
+        var pop = document.createElement("div");
+        pop.id = "opv-bm-name";
+        pop.style.cssText = "position:fixed;z-index:100080;width:400px;max-width:94vw;max-height:84vh;overflow:auto;box-sizing:border-box;background:rgba(var(--anima-bg-deep-rgb),var(--anima-popup-alpha,.94));border:1px solid rgba(var(--anima-line-soft-rgb),.42);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.7);padding:12px;";
+        pop.style.left = Math.max(10, Math.round((window.innerWidth - 400) / 2)) + "px";
+        pop.style.top = Math.max(10, Math.round(window.innerHeight * 0.12)) + "px";
+        function close() { if (pop.parentNode) pop.remove(); }
+        var head = document.createElement("div");
+        head.textContent = T("添加书签");
+        head.title = T("拖拽移动");
+        head.style.cssText = "color:var(--anima-accent-soft);font-weight:700;font-size:14px;margin:-12px -12px 8px;padding:10px 12px;user-select:none;border-bottom:1px solid rgba(var(--anima-line-soft-rgb),.42);";
+        pop.appendChild(head);
+        flowBmDrag(head, pop);
+        var well = document.createElement("div");
+        well.style.cssText = "width:140px;height:140px;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;background:rgba(var(--anima-bg-deep-rgb),.72);color:var(--anima-mute);border-radius:8px;overflow:hidden;font-size:12px;";
+        if (it.url) {
+            var img = document.createElement("img");
+            img.src = it.url;
+            img.alt = "";
+            img.draggable = false;
+            img.style.cssText = "width:100%;height:100%;object-fit:cover;display:block;";
+            img.onerror = function () { if (img.parentNode) img.remove(); well.textContent = T("无图"); };
+            well.appendChild(img);
+        } else well.textContent = T("无图");
+        pop.appendChild(well);
+        var where = document.createElement("div");
+        where.textContent = flowBmPlace(ctx);
+        where.style.cssText = "font-size:12px;color:var(--anima-ink-soft);line-height:1.45;word-break:break-word;margin-bottom:4px;";
+        pop.appendChild(where);
+        var hint = document.createElement("div");
+        hint.textContent = T("从这张图继续往下看");
+        hint.style.cssText = "font-size:11px;color:var(--anima-mute);margin-bottom:10px;";
+        pop.appendChild(hint);
+        var nameLab = document.createElement("div");
+        nameLab.textContent = T("书签名称");
+        nameLab.style.cssText = "font-size:11px;color:var(--anima-accent-soft);margin-bottom:4px;";
+        pop.appendChild(nameLab);
+        var input = document.createElement("input");
+        input.type = "text";
+        input.maxLength = 80;
+        input.autocomplete = "off";
+        input.placeholder = T("给书签起个名字");
+        input.value = String(prev.name || "");
+        input.style.cssText = "width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid rgba(var(--anima-line-soft-rgb),.42);background:rgba(var(--anima-input-rgb),.88);color:var(--anima-ink);font-size:14px;outline:none;";
+        pop.appendChild(input);
+        var folderLab = document.createElement("div");
+        folderLab.textContent = T("分类");
+        folderLab.style.cssText = "font-size:11px;color:var(--anima-accent-soft);margin:10px 0 4px;";
+        pop.appendChild(folderLab);
+        var folderSelect = document.createElement("select");
+        folderSelect.style.cssText = "width:100%;box-sizing:border-box;padding:6px 8px;border-radius:6px;border:1px solid rgba(var(--anima-line-soft-rgb),.42);background:rgba(var(--anima-input-rgb),.88);color:var(--anima-ink);font-size:13px;";
+        function fillFolders(pick) {
+            folderSelect.innerHTML = "";
+            var op0 = document.createElement("option");
+            op0.value = "";
+            op0.textContent = T("未分类");
+            folderSelect.appendChild(op0);
+            flowBmStore().folders.forEach(function (f) {
+                var op = document.createElement("option");
+                op.value = f.id;
+                op.textContent = f.name;
+                folderSelect.appendChild(op);
+            });
+            folderSelect.value = pick || "";
+            if (folderSelect.value !== (pick || "")) folderSelect.value = "";
+        }
+        fillFolders(String(prev.folder || ""));
+        pop.appendChild(folderSelect);
+        var newFolder = document.createElement("button");
+        newFolder.type = "button";
+        newFolder.textContent = T("新建分类");
+        newFolder.style.cssText = "margin-top:8px;padding:4px 10px;border-radius:6px;border:1px solid rgba(var(--anima-line-soft-rgb),.42);background:transparent;color:var(--anima-ink-soft);cursor:pointer;font-size:12px;";
+        newFolder.onclick = function (ev) {
+            ev.preventDefault();
+            flowBmAsk(T("新建分类"), T("分类名称"), function (name) {
+                var row = flowBmAddFolder(name);
+                if (row) fillFolders(row.id);
+            });
+        };
+        pop.appendChild(newFolder);
+        var bar = document.createElement("div");
+        bar.style.cssText = "display:flex;justify-content:flex-end;gap:8px;margin-top:12px;";
+        var cancel = document.createElement("button");
+        cancel.type = "button";
+        cancel.textContent = T("取消");
+        cancel.style.cssText = "padding:6px 14px;border-radius:6px;border:1px solid rgba(var(--anima-line-soft-rgb),.42);background:rgba(var(--anima-input-rgb),.86);color:var(--anima-ink);cursor:pointer;";
+        cancel.onclick = function (ev) { ev.preventDefault(); close(); };
+        var ok = document.createElement("button");
+        ok.type = "button";
+        ok.textContent = T("确定");
+        ok.style.cssText = "padding:6px 14px;border-radius:6px;border:1px solid rgba(var(--anima-accent-rgb),.7);background:rgba(var(--anima-accent-rgb),.22);color:var(--anima-accent-soft);cursor:pointer;font-weight:700;";
+        function confirm() {
+            ctx.name = input.value;
+            ctx.folder = folderSelect.value || "";
+            ctx.thumb = it.url || "";
+            flowBmUpsert(ctx);
+            close();
+            toast(T("已添加书签"), 1400);
+            var list = document.getElementById("opv-bm-pop");
+            if (list && list._opvPaint) list._opvPaint();
+        }
+        ok.onclick = function (ev) { ev.preventDefault(); confirm(); };
+        input.onkeydown = function (ev) {
+            if (ev.key === "Enter") { ev.preventDefault(); confirm(); }
+            else if (ev.key === "Escape") { ev.preventDefault(); close(); }
+        };
+        bar.appendChild(cancel);
+        bar.appendChild(ok);
+        pop.appendChild(bar);
+        document.body.appendChild(pop);
+        flowBmSkin(pop);
+        if (window.clampPopup) window.clampPopup(pop);
+        setTimeout(function () { try { input.focus(); if (input.value) input.select(); } catch (eF) {} }, 0);
+    }
+    function flowBmAsk(title, placeholder, onOk) {
+        var old = document.getElementById("opv-bm-ask");
+        if (old) old.remove();
+        var pop = document.createElement("div");
+        pop.id = "opv-bm-ask";
+        pop.style.cssText = "position:fixed;z-index:100090;width:320px;max-width:94vw;box-sizing:border-box;background:rgba(var(--anima-bg-deep-rgb),var(--anima-popup-alpha,.94));border:1px solid rgba(var(--anima-line-soft-rgb),.42);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.7);padding:12px;";
+        pop.style.left = Math.max(10, Math.round((window.innerWidth - 320) / 2)) + "px";
+        pop.style.top = Math.max(10, Math.round(window.innerHeight * 0.2)) + "px";
+        function close() { if (pop.parentNode) pop.remove(); }
+        var head = document.createElement("div");
+        head.textContent = title;
+        head.style.cssText = "color:var(--anima-accent-soft);font-weight:700;font-size:14px;margin-bottom:8px;";
+        pop.appendChild(head);
+        var input = document.createElement("input");
+        input.type = "text";
+        input.maxLength = 40;
+        input.placeholder = placeholder || "";
+        input.style.cssText = "width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid rgba(var(--anima-line-soft-rgb),.42);background:rgba(var(--anima-input-rgb),.88);color:var(--anima-ink);font-size:14px;outline:none;";
+        pop.appendChild(input);
+        var bar = document.createElement("div");
+        bar.style.cssText = "display:flex;justify-content:flex-end;gap:8px;margin-top:10px;";
+        var cancel = document.createElement("button");
+        cancel.type = "button";
+        cancel.textContent = T("取消");
+        cancel.style.cssText = "padding:6px 12px;border-radius:6px;border:1px solid rgba(var(--anima-line-soft-rgb),.42);background:rgba(var(--anima-input-rgb),.86);color:var(--anima-ink);cursor:pointer;";
+        cancel.onclick = function (ev) { ev.preventDefault(); close(); };
+        var ok = document.createElement("button");
+        ok.type = "button";
+        ok.textContent = T("确定");
+        ok.style.cssText = "padding:6px 12px;border-radius:6px;border:1px solid rgba(var(--anima-accent-rgb),.7);background:rgba(var(--anima-accent-rgb),.22);color:var(--anima-accent-soft);cursor:pointer;font-weight:700;";
+        function confirm() {
+            var name = flowBmClean(input.value, 40);
+            close();
+            if (name && onOk) onOk(name);
+        }
+        ok.onclick = function (ev) { ev.preventDefault(); confirm(); };
+        input.onkeydown = function (ev) {
+            if (ev.key === "Enter") { ev.preventDefault(); confirm(); }
+            else if (ev.key === "Escape") { ev.preventDefault(); close(); }
+        };
+        bar.appendChild(cancel);
+        bar.appendChild(ok);
+        pop.appendChild(bar);
+        document.body.appendChild(pop);
+        flowBmSkin(pop);
+        setTimeout(function () { try { input.focus(); } catch (eA) {} }, 0);
+    }
+    function openFlowBmList() {
+        var old = document.getElementById("opv-bm-pop");
+        var oldHover = document.getElementById("opv-bm-hover");
+        if (old) old.remove();
+        if (oldHover) oldHover.remove();
+        var saved = flowBmLoadWin();
+        var w = saved && saved.width ? Number(saved.width) : 560;
+        var h = saved && saved.height ? Number(saved.height) : 460;
+        w = Math.max(340, Math.min(w, window.innerWidth - 20));
+        h = Math.max(260, Math.min(h, window.innerHeight - 20));
+        var left = saved && saved.left != null ? Number(saved.left) : Math.max(10, Math.round((window.innerWidth - w) / 2));
+        var top = saved && saved.top != null ? Number(saved.top) : Math.max(10, Math.round((window.innerHeight - h) / 2));
+        var pop = document.createElement("div");
+        pop.id = "opv-bm-pop";
+        pop.style.cssText = "position:fixed;z-index:100060;display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;background:rgba(var(--anima-bg-deep-rgb),var(--anima-popup-alpha,.94));border:1px solid rgba(var(--anima-line-soft-rgb),.42);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.7);padding:12px;";
+        pop.style.left = left + "px";
+        pop.style.top = top + "px";
+        pop.style.width = w + "px";
+        pop.style.height = h + "px";
+        var hoverTimer = 0;
+        function hideHover() {
+            if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = 0; }
+            var elh = document.getElementById("opv-bm-hover");
+            if (elh) elh.remove();
+        }
+        function shut() {
+            flowBmSaveWin(pop);
+            hideHover();
+            if (pop.parentNode) pop.remove();
+        }
+        var head = document.createElement("div");
+        head.title = T("拖拽移动");
+        head.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;margin:-12px -12px 8px;padding:8px 10px 8px 12px;flex-shrink:0;user-select:none;border-bottom:1px solid rgba(var(--anima-line-soft-rgb),.42);";
+        var title = document.createElement("span");
+        title.textContent = T("书签");
+        title.style.cssText = "color:var(--anima-accent-soft);font-weight:700;font-size:15px;";
+        var close = document.createElement("button");
+        close.type = "button";
+        close.textContent = T("关闭");
+        close.style.cssText = "padding:4px 12px;border-radius:6px;border:1px solid rgba(var(--anima-line-soft-rgb),.42);background:rgba(var(--anima-input-rgb),.86);color:var(--anima-ink-strong);cursor:pointer;font-size:13px;font-weight:700;";
+        close.onmousedown = function (ev) { ev.stopPropagation(); };
+        close.onclick = function (ev) { ev.preventDefault(); shut(); };
+        head.appendChild(title);
+        head.appendChild(close);
+        pop.appendChild(head);
+        flowBmDrag(head, pop);
+        var bar = document.createElement("div");
+        bar.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px;flex-shrink:0;";
+        pop.appendChild(bar);
+        var scroller = document.createElement("div");
+        scroller.style.cssText = "overflow:auto;flex:1;min-height:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px;align-content:start;";
+        scroller.addEventListener("scroll", hideHover);
+        pop.appendChild(scroller);
+        var grip = document.createElement("div");
+        grip.title = T("拖拽调整大小");
+        grip.style.cssText = "position:absolute;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;z-index:4;background:linear-gradient(135deg, transparent 50%, rgba(var(--anima-accent-rgb),.55) 50%);";
+        grip.onmousedown = function (ev) {
+            if (ev.button !== 0) return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            hideHover();
+            var r = pop.getBoundingClientRect();
+            var sx = ev.clientX, sy = ev.clientY, sw = r.width, sh = r.height;
+            function mv(e) {
+                pop.style.width = Math.max(340, Math.min(window.innerWidth - 20, sw + e.clientX - sx)) + "px";
+                pop.style.height = Math.max(260, Math.min(window.innerHeight - 20, sh + e.clientY - sy)) + "px";
+                if (window.clampPopup) window.clampPopup(pop);
+            }
+            function up() {
+                document.removeEventListener("mousemove", mv);
+                document.removeEventListener("mouseup", up);
+                flowBmSaveWin(pop);
+            }
+            document.addEventListener("mousemove", mv);
+            document.addEventListener("mouseup", up);
+        };
+        pop.appendChild(grip);
+        function chip(label, on) {
+            var b = document.createElement("button");
+            b.type = "button";
+            b.textContent = label;
+            b.style.cssText = "max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:3px 8px;border-radius:999px;cursor:pointer;font-size:12px;border:1px solid " + (on ? "rgba(var(--anima-accent-rgb),.8)" : "rgba(var(--anima-line-soft-rgb),.42)") + ";background:" + (on ? "rgba(var(--anima-accent-rgb),.22)" : "rgba(var(--anima-input-rgb),.35)") + ";color:" + (on ? "var(--anima-accent-soft)" : "var(--anima-ink-soft)") + ";";
+            return b;
+        }
+        function paint() {
+            hideHover();
+            _flowBmDelArm = "";
+            while (bar.firstChild) bar.removeChild(bar.firstChild);
+            while (scroller.firstChild) scroller.removeChild(scroller.firstChild);
+            var d = flowBmStore();
+            var folders = d.folders;
+            if (_flowBmView !== "all" && _flowBmView !== "" && !folders.some(function (f) { return f.id === _flowBmView; })) _flowBmView = "all";
+            function countOf(fid) {
+                var n = 0;
+                for (var i = 0; i < d.items.length; i++) {
+                    var f = String(d.items[i].folder || "");
+                    if (fid === "all" || (fid === "" && !f) || f === fid) n++;
+                }
+                return n;
+            }
+            var allChip = chip(T("全部") + " " + countOf("all"), _flowBmView === "all");
+            allChip.onclick = function (ev) { ev.preventDefault(); _flowBmView = "all"; paint(); };
+            bar.appendChild(allChip);
+            var noneChip = chip(T("未分类") + " " + countOf(""), _flowBmView === "");
+            noneChip.onclick = function (ev) { ev.preventDefault(); _flowBmView = ""; paint(); };
+            bar.appendChild(noneChip);
+            folders.forEach(function (f) {
+                var c = chip(f.name + " " + countOf(f.id), _flowBmView === f.id);
+                c.title = f.name;
+                c.onclick = function (ev) { ev.preventDefault(); _flowBmView = f.id; paint(); };
+                bar.appendChild(c);
+            });
+            var addF = chip("+ " + T("新建分类"), false);
+            addF.onclick = function (ev) {
+                ev.preventDefault();
+                flowBmAsk(T("新建分类"), T("分类名称"), function (name) {
+                    var row = flowBmAddFolder(name);
+                    if (row) _flowBmView = row.id;
+                    paint();
+                });
+            };
+            bar.appendChild(addF);
+            if (_flowBmView && _flowBmView !== "all") {
+                var delF = chip(T("删除分类"), false);
+                delF.onclick = function (ev) {
+                    ev.preventDefault();
+                    if (_flowBmDelArm !== _flowBmView) {
+                        _flowBmDelArm = _flowBmView;
+                        delF.textContent = T("确认删除分类");
+                        return;
+                    }
+                    var id = _flowBmView;
+                    _flowBmView = "all";
+                    flowBmRemoveFolder(id);
+                    paint();
+                };
+                bar.appendChild(delF);
+            }
+            var shown = d.items.filter(function (it) {
+                var f = String(it.folder || "");
+                if (_flowBmView === "all") return true;
+                if (_flowBmView === "") return !f;
+                return f === _flowBmView;
+            });
+            if (!shown.length) {
+                var tip = document.createElement("div");
+                tip.textContent = d.items.length ? T("这个分类里还没有书签") : T("还没有书签。在图片上右键，选「添加书签」。");
+                tip.style.cssText = "grid-column:1/-1;color:var(--anima-mute);font-size:13px;padding:12px 4px;";
+                scroller.appendChild(tip);
+                return;
+            }
+            shown.forEach(function (it) {
+                var card = document.createElement("div");
+                card.style.cssText = "position:relative;border:1px solid rgba(var(--anima-line-soft-rgb),.42);border-radius:8px;overflow:hidden;background:rgba(var(--anima-bg-deep-rgb),.55);cursor:pointer;";
+                var pic = document.createElement("div");
+                pic.style.cssText = "height:110px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.25);color:var(--anima-mute);font-size:12px;";
+                if (it.thumb) {
+                    var img = document.createElement("img");
+                    img.src = it.thumb;
+                    img.alt = "";
+                    img.draggable = false;
+                    img.style.cssText = "width:100%;height:100%;object-fit:cover;display:block;";
+                    img.onerror = function () { if (img.parentNode) img.remove(); pic.textContent = T("无图"); };
+                    pic.appendChild(img);
+                } else pic.textContent = T("无图");
+                card.appendChild(pic);
+                var nm = document.createElement("div");
+                nm.textContent = it.name || it.filename || "";
+                nm.style.cssText = "padding:6px 8px 0;font-size:13px;font-weight:700;color:var(--anima-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+                card.appendChild(nm);
+                var sub = document.createElement("div");
+                sub.textContent = flowBmPlace(it);
+                sub.style.cssText = "padding:2px 8px 8px;font-size:11px;color:var(--anima-mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+                card.appendChild(sub);
+                var x = document.createElement("button");
+                x.type = "button";
+                x.textContent = "×";
+                x.title = T("删除书签");
+                x.style.cssText = "position:absolute;top:4px;right:4px;width:22px;height:22px;border:none;border-radius:6px;background:rgba(0,0,0,.55);color:#fff;cursor:pointer;font-size:14px;line-height:1;";
+                x.onclick = function (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    flowBmRemove(it.id);
+                    paint();
+                };
+                card.appendChild(x);
+                card.onclick = function (ev) {
+                    ev.preventDefault();
+                    jumpFlowBookmark(it);
+                };
+                card.onmouseenter = function () {
+                    hoverTimer = setTimeout(function () {
+                        if (!card.matches(":hover")) return;
+                        hideHover();
+                        var hover = document.createElement("div");
+                        hover.id = "opv-bm-hover";
+                        hover.style.cssText = "position:fixed;z-index:100070;pointer-events:none;padding:8px;background:rgba(var(--anima-bg-deep-rgb),var(--anima-popup-alpha,.94));border:1px solid rgba(var(--anima-line-soft-rgb),.42);border-radius:10px;box-shadow:0 16px 40px rgba(0,0,0,.75);";
+                        var frame = document.createElement("div");
+                        frame.style.cssText = "display:flex;align-items:center;justify-content:center;min-width:120px;min-height:80px;color:var(--anima-mute);font-size:12px;";
+                        if (it.thumb) {
+                            var big = document.createElement("img");
+                            big.src = it.thumb;
+                            big.alt = "";
+                            big.style.cssText = "max-width:min(420px,46vw);max-height:min(62vh,640px);object-fit:contain;display:block;";
+                            frame.appendChild(big);
+                        } else frame.textContent = T("无图");
+                        hover.appendChild(frame);
+                        var cap = document.createElement("div");
+                        cap.textContent = (it.name || it.filename || "") + "\n" + flowBmPlace(it);
+                        cap.style.cssText = "margin-top:8px;max-width:min(420px,46vw);font-size:12px;color:var(--anima-ink-soft);white-space:pre-wrap;word-break:break-word;";
+                        hover.appendChild(cap);
+                        document.body.appendChild(hover);
+                        flowBmSkin(hover);
+                        var r = card.getBoundingClientRect();
+                        var hw = hover.offsetWidth || 240;
+                        var hh = hover.offsetHeight || 180;
+                        var hx = r.right + 10;
+                        if (hx + hw > window.innerWidth - 8) hx = r.left - 10 - hw;
+                        if (hx < 8) hx = 8;
+                        var hy = r.top;
+                        if (hy + hh > window.innerHeight - 8) hy = Math.max(8, window.innerHeight - hh - 8);
+                        hover.style.left = hx + "px";
+                        hover.style.top = hy + "px";
+                    }, 280);
+                };
+                card.onmouseleave = hideHover;
+                scroller.appendChild(card);
+            });
+        }
+        pop._opvPaint = paint;
+        document.body.appendChild(pop);
+        flowBmSkin(pop);
+        if (window.clampPopup) window.clampPopup(pop);
+        paint();
+    }
+
     function openCtxMenu(it, x, y, opts) {
 
         if (!it) return;
@@ -4246,6 +4861,7 @@
             if (itemKey(state.sel) !== itemKey(item)) selectItem(item, true);
             openLightbox(item);
         }));
+        m.appendChild(ctxBtn(T("添加书签"), function (item) { openFlowBmAdd(item); }));
         m.appendChild(ctxBtn(picked ? T("移出对比") : T("加入对比"), function (item) {
             if (picked) {
                 toggleCompareItem(item);
@@ -9442,7 +10058,7 @@
         var picked = cmpFind(it) >= 0;
         var ek = itemKey(it);
         var tile = el("div");
-        tile.className = "tile" + (ek === selKey ? " is-on" : "") + (picked ? " is-cmp" : "") + (isImgFav(it) ? " is-fav" : "") + ((_editOn && _editSel[ek]) ? " is-edit" : "");
+        tile.className = "tile" + (ek === selKey ? " is-on" : "") + (picked ? " is-cmp" : "") + (isImgFav(it) ? " is-fav" : "") + ((_editOn && _editSel[ek]) ? " is-edit" : "") + ((state.flowAnchor && itemKey(state.flowAnchor) === ek) ? " is-bm" : "");
         tile.setAttribute("data-key", ek);
         tile.setAttribute("data-fn", it.filename || "");
         tile.setAttribute("data-sub", it.subfolder || "");
@@ -10132,6 +10748,8 @@
         var append = !!(opts && opts.append) && isFlow();
         var merge = !!(opts && opts.merge) && !append;
         var silent = (!!(opts && opts.silent) && !append) || merge;
+        var keepAnchor = !!(opts && (opts.append || opts.keepAnchor || opts.merge));
+        if (!keepAnchor) state.flowAnchor = null;
         if (merge && !(state.items || []).length) merge = false;
         if (append) {
             if (_flowBusy || _flowEnd) return;
@@ -10166,6 +10784,10 @@
         if (state.heartRate === -1) q += "&heart=none";
         else if (state.heartRate) q += "&heart=" + state.heartRate;
         q += "&" + listDeepQuery() + "&" + listSortQuery();
+        if (state.flowAnchor && state.flowAnchor.filename) {
+            q += "&anchor=" + encodeURIComponent(state.flowAnchor.filename);
+            q += "&anchor_sub=" + encodeURIComponent(state.flowAnchor.subfolder || "");
+        }
         fetch("/danbooru_anima/output_prompt/list?" + q).then(function (r) {
             if (!r.ok) throw new Error(r.status === 404 ? "need_restart" : String(r.status));
             return r.json();
@@ -10177,6 +10799,15 @@
             if (!d || d.ok === false) {
                 if (!append && !merge) document.getElementById("grid").textContent = (d && d.error) || T("加载失败");
                 return;
+            }
+            if (d.anchor_found === false) {
+                state.flowAnchor = null;
+                toast(T("这张图已经不在这个列表里"));
+                if (append) {
+                    _flowEnd = true;
+                    renderPager();
+                    return;
+                }
             }
             syncTrashFromList(d);
             var more = d.items || [];
@@ -11159,6 +11790,12 @@
         var btnBrowse = document.getElementById("btn-browse");
         if (btnBrowse) {
             btnBrowse.onclick = function () { setBrowse(isFlow() ? "page" : "flow"); };
+        }
+        var btnBm = document.getElementById("btn-flow-bm");
+        if (btnBm) {
+            btnBm.onclick = function () { openFlowBmList(); };
+            btnBm.title = T("书签");
+            btnBm.setAttribute("aria-label", T("书签"));
         }
         var flowSize = document.getElementById("flow-size");
         if (flowSize && !flowSize._bound) {
