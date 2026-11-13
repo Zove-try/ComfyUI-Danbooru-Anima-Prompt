@@ -54,25 +54,97 @@ def _load_store():
         with open(_STORE, "r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception:
-        return "", {}
+        return "", {}, ""
     ua = str(data.get("ua") or "")
     cookies = data.get("cookies") if isinstance(data.get("cookies"), dict) else {}
     cookies = {str(k): str(v) for k, v in cookies.items() if k and v}
-    return ua, cookies
+    impersonate = str(data.get("impersonate") or "")
+    return ua, cookies, impersonate
 
 
-def _save_store(ua, cookies):
+def _save_store(ua, cookies, impersonate=""):
     os.makedirs(os.path.dirname(_STORE), exist_ok=True)
     tmp = _STORE + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        json.dump({"ua": ua, "cookies": cookies}, f, ensure_ascii=False)
+        json.dump({"ua": ua, "cookies": cookies, "impersonate": impersonate}, f, ensure_ascii=False)
     os.replace(tmp, _STORE)
+
+
+def _chrome_profiles():
+    names = []
+    try:
+        from curl_cffi.requests.impersonate import BrowserType
+        names = [x.value for x in BrowserType]
+    except Exception:
+        return [(0, "chrome")]
+    found = []
+    for name in names:
+        if not name.startswith("chrome") or "android" in name or "macos" in name:
+            continue
+        digits = ""
+        for ch in name[6:]:
+            if ch.isdigit():
+                digits += ch
+            else:
+                break
+        if digits:
+            found.append((int(digits), name))
+    found.sort()
+    return found or [(0, "chrome")]
+
+
+def _chrome_major(ua):
+    token = "Chrome/"
+    i = str(ua or "").find(token)
+    if i < 0:
+        return 0
+    j = i + len(token)
+    text = str(ua or "")
+    digits = ""
+    while j < len(text) and text[j].isdigit():
+        digits += text[j]
+        j += 1
+    try:
+        return int(digits or "0")
+    except Exception:
+        return 0
+
+
+def _impersonate_for_ua(ua):
+    profiles = _chrome_profiles()
+    major = _chrome_major(ua)
+    if major <= 0:
+        return profiles[-1][1]
+    chosen = profiles[0][1]
+    for ver, name in profiles:
+        if ver <= major:
+            chosen = name
+        else:
+            break
+    return chosen
 
 
 def _chrome_path():
     for path in _CHROME_CANDIDATES:
         if path and os.path.isfile(path):
             return path
+    try:
+        import winreg
+        keys = (
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"),
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"),
+            (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"),
+        )
+        for root, sub in keys:
+            try:
+                with winreg.OpenKey(root, sub) as key:
+                    val, _typ = winreg.QueryValueEx(key, "")
+            except OSError:
+                continue
+            if val and os.path.isfile(val):
+                return val
+    except Exception:
+        pass
     return ""
 
 
@@ -126,7 +198,9 @@ def _auth_for(url, auth):
 def _raw(method, url, params, timeout, data=None, auth=None):
     from curl_cffi import requests as cr
 
-    ua, cookies = _load_store()
+    ua, cookies, impersonate = _load_store()
+    if not impersonate:
+        impersonate = _impersonate_for_ua(ua)
     headers = {
         "Accept": "application/json,image/avif,image/webp,image/*,*/*;q=0.8",
         "Referer": "https://danbooru.donmai.us/",
@@ -144,7 +218,7 @@ def _raw(method, url, params, timeout, data=None, auth=None):
         headers=headers,
         cookies=cookies or None,
         proxies=proxies,
-        impersonate="chrome",
+        impersonate=impersonate or "chrome",
         timeout=timeout or 30,
     )
     if data is not None:
@@ -174,7 +248,7 @@ def _cookie_map(raw):
 async def _read_clearance(port, pid=0):
     import aiohttp
 
-    deadline = time.time() + 70
+    deadline = time.time() + 15
     pages = None
     async with aiohttp.ClientSession() as sess:
         while time.time() < deadline:
@@ -197,9 +271,7 @@ async def _read_clearance(port, pid=0):
             await _cdp(ws, 1, "Page.bringToFront")
             ua = ""
             cookies = {}
-            for i in range(120):
-                if pid and i in (0, 8):
-                    _raise_chrome(pid)
+            for i in range(160):
                 cookie_msg = await _cdp(
                     ws,
                     i + 2,
@@ -223,52 +295,155 @@ async def _read_clearance(port, pid=0):
                     )
                     ua = ((ua_msg.get("result") or {}).get("result") or {}).get("value") or ""
                     return ua, cookies
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(0.45)
             return ua, cookies
 
 
-def _raise_chrome(pid):
-    """Keep the clearance window above other apps. A covered window never finishes Turnstile."""
+async def _click_turnstile(ws, msg_id):
+    expr = (
+        "(() => {"
+        "var list = document.querySelectorAll('iframe');"
+        "for (var i = 0; i < list.length; i++) {"
+        "  var src = list[i].src || '';"
+        "  if (src.indexOf('challenges.cloudflare.com') < 0 && src.indexOf('turnstile') < 0) continue;"
+        "  var r = list[i].getBoundingClientRect();"
+        "  if (r.width < 8 || r.height < 8) continue;"
+        "  return {x: r.left + Math.min(30, r.width / 2), y: r.top + r.height / 2};"
+        "}"
+        "return null;"
+        "})()"
+    )
+    msg = await _cdp(ws, msg_id, "Runtime.evaluate", {"expression": expr, "returnByValue": True})
+    pos = ((msg.get("result") or {}).get("result") or {}).get("value")
+    if not isinstance(pos, dict):
+        return
+    try:
+        x = float(pos.get("x"))
+        y = float(pos.get("y"))
+    except Exception:
+        return
+    for kind in ("mouseMoved", "mousePressed", "mouseReleased"):
+        await _cdp(ws, msg_id + 1, "Input.dispatchMouseEvent", {
+            "type": kind,
+            "x": x,
+            "y": y,
+            "button": "left",
+            "clickCount": 1,
+        })
+
+
+def _family_pids(root):
+    root = int(root or 0)
+    if root <= 0:
+        return set()
+    try:
+        import ctypes
+        from ctypes import wintypes
+        kernel32 = ctypes.windll.kernel32
+        TH32CS_SNAPPROCESS = 0x00000002
+
+        class PE(ctypes.Structure):
+            _fields_ = [
+                ("dwSize", wintypes.DWORD),
+                ("cntUsage", wintypes.DWORD),
+                ("th32ProcessID", wintypes.DWORD),
+                ("th32DefaultHeapID", ctypes.c_size_t),
+                ("th32ModuleID", wintypes.DWORD),
+                ("cntThreads", wintypes.DWORD),
+                ("th32ParentProcessID", wintypes.DWORD),
+                ("pcPriClassBase", ctypes.c_long),
+                ("dwFlags", wintypes.DWORD),
+                ("szExeFile", wintypes.WCHAR * 260),
+            ]
+
+        snap = kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+        if not snap or snap == ctypes.c_void_p(-1).value:
+            return {root}
+        edges = []
+        try:
+            pe = PE()
+            pe.dwSize = ctypes.sizeof(PE)
+            ok = kernel32.Process32FirstW(snap, ctypes.byref(pe))
+            while ok:
+                edges.append((int(pe.th32ProcessID), int(pe.th32ParentProcessID)))
+                ok = kernel32.Process32NextW(snap, ctypes.byref(pe))
+        finally:
+            kernel32.CloseHandle(snap)
+        children = {}
+        for pid, parent in edges:
+            children.setdefault(parent, []).append(pid)
+        found = set()
+        stack = [root]
+        while stack:
+            cur = stack.pop()
+            if cur in found:
+                continue
+            found.add(cur)
+            stack.extend(children.get(cur, []))
+        return found or {root}
+    except Exception:
+        return {root}
+
+
+def _raise_chrome(pid, steal_focus=False):
+    """Keep the clearance window visible. A covered window never finishes Turnstile."""
     try:
         import ctypes
         from ctypes import wintypes
     except Exception:
         return
     user32 = ctypes.windll.user32
-    user32.keybd_event.argtypes = [ctypes.c_ubyte, ctypes.c_ubyte, ctypes.c_uint, ctypes.c_void_p]
+    pids = _family_pids(pid)
     found = []
 
     def _cb(hwnd, _lparam):
         if user32.IsWindowVisible(hwnd):
             owner = wintypes.DWORD()
             user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
-            if owner.value == pid:
-                found.append(hwnd)
+            if int(owner.value) in pids:
+                rect = wintypes.RECT()
+                user32.GetWindowRect(hwnd, ctypes.byref(rect))
+                area = max(0, rect.right - rect.left) * max(0, rect.bottom - rect.top)
+                if area >= 200 * 160:
+                    found.append((area, hwnd))
         return True
 
     enum_proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
     user32.EnumWindows(enum_proc(_cb), 0)
     if not found:
         return
+    hwnd = max(found)[1]
     HWND_TOPMOST = -1
     SWP_SHOWWINDOW = 0x0040
-    user32.keybd_event(0x12, 0, 0, None)
+    if steal_focus:
+        user32.keybd_event.argtypes = [ctypes.c_ubyte, ctypes.c_ubyte, ctypes.c_uint, ctypes.c_void_p]
+        user32.keybd_event(0x12, 0, 0, None)
     try:
-        for hwnd in found:
-            user32.ShowWindow(hwnd, 9)
-            user32.SetWindowPos(hwnd, HWND_TOPMOST, 40, 40, 980, 720, SWP_SHOWWINDOW)
+        user32.ShowWindow(hwnd, 9)
+        user32.SetWindowPos(hwnd, HWND_TOPMOST, 40, 40, 980, 720, SWP_SHOWWINDOW)
+        if steal_focus:
             user32.SetForegroundWindow(hwnd)
     finally:
-        user32.keybd_event(0x12, 0, 2, None)
+        if steal_focus:
+            user32.keybd_event(0x12, 0, 2, None)
+
+
+_CLEARANCE_ACTIVE = False
+_CLEARANCE_HINT = "会弹出一个 Chrome 窗口。里面如果是勾选或者「请稍候」，就在那个窗口里做完，不要关掉。做完以后窗口里会出现图，这里会自己继续。如果窗口里已经是一排图，不用点。"
+
+
+def clearance_active():
+    return bool(_CLEARANCE_ACTIVE)
 
 
 def _refresh_clearance():
+    global _CLEARANCE_ACTIVE
     chrome = _chrome_path()
     if not chrome:
         raise DonmaiBlocked("本机没有找到 Chrome，过不了 Danbooru 现在的 Cloudflare 验证。")
     port = _free_port()
     os.makedirs(_PROFILE, exist_ok=True)
-    url = "https://danbooru.donmai.us/posts.json?limit=1&tags=rating:g"
+    url = "https://danbooru.donmai.us/posts?tags=rating:g"
     args = [
         chrome,
         f"--remote-debugging-port={port}",
@@ -276,7 +451,10 @@ def _refresh_clearance():
         "--disable-quic",
         "--no-first-run",
         "--no-default-browser-check",
-        "--disable-blink-features=AutomationControlled",
+        "--disable-background-timer-throttling",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-renderer-backgrounding",
+        "--disable-features=CalculateNativeWinOcclusion",
         "--window-position=40,40",
         "--window-size=980,720",
         url,
@@ -284,10 +462,11 @@ def _refresh_clearance():
     proxy = _proxy_server()
     if proxy:
         args.insert(-1, "--proxy-server=" + proxy)
-    print("[DanbooruAnima] Cloudflare 拦住了请求，正在打开 Chrome 通过验证…")
+    print("[DanbooruAnima] Cloudflare 拦住了请求，正在打开 Chrome 让用户通过验证…")
+    _CLEARANCE_ACTIVE = True
     proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    time.sleep(0.6)
-    _raise_chrome(proc.pid)
+    time.sleep(0.8)
+    _raise_chrome(proc.pid, steal_focus=True)
     holder = {}
 
     def _run():
@@ -298,24 +477,31 @@ def _refresh_clearance():
 
     worker = threading.Thread(target=_run, daemon=True)
     worker.start()
-    worker.join(80)
+    opened = time.time()
+    brought = False
+    deadline = opened + 90
     try:
+        while worker.is_alive() and time.time() < deadline:
+            if not brought and time.time() > opened + 1.6:
+                _raise_chrome(proc.pid, steal_focus=True)
+                brought = True
+            worker.join(0.4)
+        worker.join(2)
         if holder.get("error"):
             raise holder["error"]
         ua, cookies = holder.get("result") or ("", {})
     finally:
+        _CLEARANCE_ACTIVE = False
         proc.terminate()
         try:
             proc.wait(timeout=5)
         except Exception:
             proc.kill()
     if not cookies.get("cf_clearance"):
-        raise DonmaiBlocked(
-            "Danbooru 的 Cloudflare 验证没通过。请让弹出的 Chrome 停在前台，直到页面出现数据，然后再搜一次。"
-        )
+        raise DonmaiBlocked(_CLEARANCE_HINT)
     if not ua:
         ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36"
-    _save_store(ua, cookies)
+    _save_store(ua, cookies, _impersonate_for_ua(ua))
     print("[DanbooruAnima] Cloudflare 验证已通过")
 
 
@@ -346,7 +532,7 @@ def get(url, params=None, timeout=30, method="GET", data=None, auth=None, auth_f
             _refresh_clearance()
             resp = _raw(method, url, params, timeout, data, auth_value)
         if _is_challenge(resp):
-            raise DonmaiBlocked("Danbooru 仍被 Cloudflare 拦住。请再搜一次；如果弹出 Chrome，让它停在前台直到出现数据。")
+            raise DonmaiBlocked(_CLEARANCE_HINT)
         return resp
 
     resp = _fetch(auth)

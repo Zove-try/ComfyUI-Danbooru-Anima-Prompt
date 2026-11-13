@@ -994,6 +994,15 @@ def register_routes():
     _routes_registered = True
     """注册所有 API 路由"""
 
+    @PromptServer.instance.routes.get("/danbooru_anima/cf_status")
+    async def cf_status(request):
+        try:
+            from .donmai_client import clearance_active
+            active = bool(clearance_active())
+        except Exception:
+            active = False
+        return web.json_response({"active": active})
+
     @PromptServer.instance.routes.post("/danbooru_anima/search")
     async def search(request):
         """搜索帖子（带内存缓存，1 小时过期）"""

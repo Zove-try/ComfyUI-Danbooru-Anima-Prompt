@@ -3979,6 +3979,22 @@ if (pgNext && !pgNext.disabled) { if (activeMain === 'tags') _tagPage++; else _i
                     _ld.style.cssText = "grid-column:1/-1;text-align:center;padding:18px 0;color:var(--anima-accent-soft);font-size:13px;";
                     gridContainer.appendChild(_ld);
                 }
+                var _cfStop = false;
+                var _cfTimer = setInterval(function () {
+                    if (_cfStop || _gen !== _searchGen) return;
+                    fetch("/danbooru_anima/cf_status").then(function (r) { return r.json(); }).then(function (d) {
+                        if (_cfStop || _gen !== _searchGen || !d || !d.active) return;
+                        var note = document.getElementById("db-cf-note");
+                        if (!note) {
+                            gridContainer.innerHTML = "";
+                            note = document.createElement("div");
+                            note.id = "db-cf-note";
+                            note.style.cssText = "grid-column:1/-1;max-width:640px;margin:28px auto;padding:16px 18px;white-space:pre-wrap;text-align:left;line-height:1.65;font-size:15px;color:#f3f3f3;background:rgba(0,0,0,.28);border:1px solid rgba(251,191,36,.45);border-radius:12px;";
+                            gridContainer.appendChild(note);
+                        }
+                        note.textContent = animaTxt("会弹出一个 Chrome 窗口。里面如果是勾选或者「请稍候」，就在那个窗口里做完，不要关掉。做完以后窗口里会出现图，这里会自己继续。如果窗口里已经是一排图，不用点。");
+                    }).catch(function () {});
+                }, 700);
                 searchBtn.textContent = "⏳";
                 try {
                     // 时间排序用 id 游标；评分排序用数字 page（score:<= 会把后续页卡成空）
@@ -4070,7 +4086,7 @@ if (pgNext && !pgNext.disabled) { if (activeMain === 'tags') _tagPage++; else _i
                         if (!append) {
                             const _fail = document.createElement("div");
                             _fail.style.cssText = "color:#f87171;padding:30px;text-align:center;grid-column:1/-1;white-space:pre-wrap;";
-                            _fail.textContent = (data && data.error) ? String(data.error) : "搜索失败";
+                            _fail.textContent = animaTxt((data && data.error) ? String(data.error) : "搜索失败");
                             gridContainer.innerHTML = "";
                             gridContainer.appendChild(_fail);
                         }
@@ -4085,6 +4101,8 @@ if (pgNext && !pgNext.disabled) { if (activeMain === 'tags') _tagPage++; else _i
                         gridContainer.innerHTML = `<div style="color:#f87171;padding:30px;text-align:center;grid-column:1/-1;">${err.message}</div>`;
                     }
                 } finally {
+                    _cfStop = true;
+                    clearInterval(_cfTimer);
                     if (_gen === _searchGen && !doSearch._scoreRetrying) {
                         isLoading = false;
                         searchBtn.textContent = "🔍";

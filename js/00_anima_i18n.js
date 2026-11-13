@@ -84,6 +84,7 @@
         "加载失败": "Load failed",
         "搜索中...": "Searching...",
         "搜索失败": "Search failed",
+        "会弹出一个 Chrome 窗口。里面如果是勾选或者「请稍候」，就在那个窗口里做完，不要关掉。做完以后窗口里会出现图，这里会自己继续。如果窗口里已经是一排图，不用点。": "A Chrome window will open. If it shows a checkbox or \"Just a moment\", finish it in that window and don't close it. When pictures appear there, results will continue here. If pictures are already there, you don't need to click anything.",
         "无结果": "No results",
         "就绪": "Ready",
         "未知错误": "Unknown error",
