@@ -1,6 +1,6 @@
 [project]
 name = "danbooru-anima-prompt"
-version = "1.0.0"
+version = "1.0.1"
 description = "Browse Danbooru and Gelbooru, classify tags, and compose Anima, Noob, Aesthetic, and NewBie prompts in ComfyUI."
 readme = "README.md"
 license = { file = "LICENSE" }
