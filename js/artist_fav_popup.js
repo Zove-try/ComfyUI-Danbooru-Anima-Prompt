@@ -771,10 +771,16 @@ chdr.appendChild(chdrClose);
                                 row.onmouseover = function(){ this.style.background="rgba(255,255,255,0.06)"; };
                                 row.onmouseout = function(){ this.style.background="rgba(255,255,255,0.03)"; };
                                 row.onclick = function(){
-                                    (combo.artists||[]).forEach(function(a){
-                                        if (window._artistFavFallback) { window._artistFavFallback(a); }
-                                    });
-                                    if (window._artistFavFallbackRefresh) window._artistFavFallbackRefresh();
+                                    var list = combo.artists || [];
+                                    var viaSelect = typeof window._artistFavOnSelect === "function";
+                                    for (var ai = 0; ai < list.length; ai++) {
+                                        var raw = String(list[ai] || "").trim();
+                                        if (!raw) continue;
+                                        var bare = raw.charAt(0) === "@" ? raw.slice(1) : raw;
+                                        if (viaSelect) window._artistFavOnSelect(bare);
+                                        else if (typeof window._artistFavFallback === "function") window._artistFavFallback(raw);
+                                    }
+                                    if (!viaSelect && typeof window._artistFavFallbackRefresh === "function") window._artistFavFallbackRefresh();
                                 };
                                 if (combo.thumbs && combo.thumbs.length) {
                                     var tn2 = document.createElement("img");

@@ -1072,7 +1072,7 @@ const NB_DEFAULT_ASSIGN = {
             const nlInp = document.createElement("input");
             nlInp.type = "text";
             nlInp.value = w.nb_caption?.value || "";
-            nlInp.placeholder = animaTxt("用中文描述画面内容...");
+            nlInp.placeholder = animaTxt("输入中文，点右边 🌐 译成英文");
             nlInp.style.cssText = "flex:1;padding:4px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.16);background:rgba(8,10,14,.88);color:#ffffff;font-size:13px;outline:none;";
             nlInp.oninput = () => { setW("nb_caption", nlInp.value); refreshPreview(); };
             nlRow.appendChild(nlInp);
@@ -1157,18 +1157,21 @@ const NB_DEFAULT_ASSIGN = {
             var tbArtistFav = _mkToolBtn("⭐", "画师收藏夹");
             var _lbl3 = document.createElement("span"); _lbl3.textContent = animaTxt("收藏"); _lbl3.style.cssText = "color:var(--anima-mute);font-size:13px;";
             grpArt.appendChild(tbArtistFav);
+            function _nbApplyArtist(nm) {
+                nm = String(nm || "").trim().replace(/^@+/, "");
+                if (!nm) return;
+                var cur = (w.nb_artists?.value || "").split(/[,，]+/).map(function(s){ return s.trim().replace(/^@+/, ""); }).filter(Boolean);
+                if (cur.indexOf(nm) < 0) cur.push(nm);
+                var joined = cur.join(", ");
+                setW("nb_artists", joined);
+                if (_genInputRefs && _genInputRefs["artists"]) _genInputRefs["artists"].value = joined;
+                refreshPreview();
+            }
             tbArtistFav.onclick = function(){
-                window._artistFavOnSelect = function(nm){
-                    nm = (nm||"").trim().replace(/^@+/,"");
-                    if (!nm) return;
-                    try {
-                        var cur = (w.nb_artists?.value||"").split(/[,，]+/).map(function(s){return s.trim().replace(/^@+/,"");}).filter(Boolean);
-                        if (cur.indexOf(nm) < 0) cur.push(nm);
-                        setW("nb_artists", cur.join(", "));
-                        if (_genInputRefs && _genInputRefs["artists"]) { _genInputRefs["artists"].value = cur.join(", "); }
-                        refreshPreview();
-                    } catch(e){ console.error(e); }
-                };
+                window._adexOnSelect = null;
+                window._artistFavOnSelect = _nbApplyArtist;
+                window._artistFavFallback = _nbApplyArtist;
+                window._artistFavFallbackRefresh = function(){ refreshPreview(); };
                 if (typeof window.showArtistFavPopup === "function") window.showArtistFavPopup("danbooru");
             };
             panel.appendChild(toolbar);

@@ -314,7 +314,13 @@ if (!_mSelected.length && !w.meta_tags?.value) { _mSelected = ["highres","absurd
             aFavBtn.style.cssText = "display:inline-flex;align-items:center;gap:3px;padding:4px 9px;border-radius:8px;cursor:pointer;font-size:13px;background:rgba(255,255,255,.08);color:var(--anima-accent-soft);border:1px solid rgba(255,255,255,.16);transition:all 0.15s ease;user-select:none;vertical-align:middle;flex-shrink:0;";
             aFavBtn.onmouseenter = function(){ aFavBtn.style.background="rgba(var(--anima-accent-rgb),0.15)"; aFavBtn.style.color="var(--anima-accent-soft)"; aFavBtn.style.borderColor="rgba(255,255,255,.28)"; aFavBtn.style.transform="translateY(-1px)"; };
             aFavBtn.onmouseleave = function(){ aFavBtn.style.background="rgba(255,255,255,.08)"; aFavBtn.style.color="var(--anima-accent-soft)"; aFavBtn.style.borderColor="rgba(255,255,255,.16)"; aFavBtn.style.transform=""; };
-            aFavBtn.onclick = () => { window._adexOnSelect = null; window._artistFavOnSelect = applyArtistFav; window.showArtistFavPopup("danbooru"); };
+            aFavBtn.onclick = () => {
+                window._adexOnSelect = null;
+                window._artistFavOnSelect = applyArtistFav;
+                window._artistFavFallback = applyArtistFav;
+                window._artistFavFallbackRefresh = function(){ refreshPreview(); };
+                window.showArtistFavPopup("danbooru");
+            };
             aBar.appendChild(aFavBtn);
             const aAdexBtn = document.createElement("button");
             aAdexBtn.textContent = "🎨 ADex"; aAdexBtn.title = "搜画师 (Animadex)";
@@ -1576,7 +1582,7 @@ if (!_mSelected.length && !w.meta_tags?.value) { _mSelected = ["highres","absurd
                     const row = document.createElement("div");
                     row.style.cssText = "display:flex;gap:4px;align-items:center;";
                     const inp = document.createElement("input");
-                    inp.type = "text"; inp.value = it.cn || ""; inp.placeholder = animaTxt("输入中文自然语言...");
+                    inp.type = "text"; inp.value = it.cn || ""; inp.placeholder = animaTxt("输入中文，点左边 🌐 译成英文");
                     inp.style.cssText = "flex:1;padding:4px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.16);background:rgba(8,10,14,.88);color:#ffffff;font-size:13px;outline:none;";
                     const posSel = document.createElement("select");
                     posSel.style.cssText = "padding:4px 6px;border-radius:8px;border:1px solid rgba(255,255,255,.16);background:rgba(8,10,14,.88);color:#ffffff;font-size:12px;";

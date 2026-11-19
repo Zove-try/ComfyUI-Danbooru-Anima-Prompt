@@ -702,14 +702,14 @@ var APICK_ICO_EYE = "<svg viewBox=\"0 0 16 16\" fill=\"none\"><path d=\"M1.4 8s2
 var APICK_ICO_EYE_OFF = "<svg viewBox=\"0 0 16 16\" fill=\"none\"><path d=\"M2.2 8.2c1.5-2.4 3.4-3.6 5.8-3.6 1.3 0 2.5.4 3.6 1.1\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"round\"/><path d=\"M13.8 7.6c.3.5.4.8.4 1.1 0 0-2.2 3.6-6.2 3.6-1.2 0-2.3-.3-3.3-.9\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"round\"/><path d=\"M3.1 13.1 12.9 3.3\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"round\"/></svg>";
 
 function injectStyles() {
-    ["apick-styles-v1", "apick-styles-v2", "apick-styles-v3", "apick-styles-v4", "apick-styles-v5", "apick-styles-v6", "apick-styles-v7", "apick-styles-v8", "apick-styles-v9", "apick-styles-v10", "apick-styles-v11", "apick-styles-v12", "apick-styles-v13", "apick-styles-v14", "apick-styles-v15", "apick-styles-v16", "apick-styles-v17", "apick-styles-v18", "apick-styles-v19", "apick-styles-v20", "apick-styles-v21"].forEach(function (id) {
+    ["apick-styles-v1", "apick-styles-v2", "apick-styles-v3", "apick-styles-v4", "apick-styles-v5", "apick-styles-v6", "apick-styles-v7", "apick-styles-v8", "apick-styles-v9", "apick-styles-v10", "apick-styles-v11", "apick-styles-v12", "apick-styles-v13", "apick-styles-v14", "apick-styles-v15", "apick-styles-v16", "apick-styles-v17", "apick-styles-v18", "apick-styles-v19", "apick-styles-v20", "apick-styles-v21", "apick-styles-v22"].forEach(function (id) {
         var old = document.getElementById(id);
-        if (old && old.dataset.rev !== "21") old.remove();
+        if (old && old.dataset.rev !== "22") old.remove();
     });
-    if (document.getElementById("apick-styles-v21")) return;
+    if (document.getElementById("apick-styles-v22")) return;
     var s = document.createElement("style");
-    s.id = "apick-styles-v21";
-    s.dataset.rev = "21";
+    s.id = "apick-styles-v22";
+    s.dataset.rev = "22";
     s.textContent = [
         ".apick-host{overflow:hidden!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important;}",
         ".apick-wrap{display:flex;flex-direction:column;width:100%;height:100%;min-width:0;min-height:0;max-width:100%;overflow:hidden;box-sizing:border-box;position:relative;",
@@ -746,24 +746,23 @@ function injectStyles() {
         ".apick-clear{order:3;flex:0 0 auto;border:0;border-radius:6px;background:transparent;color:rgba(255,255,255,.62);font:inherit;font-size:11px;font-weight:650;letter-spacing:.04em;padding:2px 6px;cursor:pointer;}",
         ".apick-clear:hover{color:#fff;background:rgba(var(--anima-accent-rgb),.4);}",
         ".apick-clear[hidden]{display:none;}",
-        ".apick-eye{order:2;flex:0 0 22px;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:6px;padding:0;background:transparent;color:rgba(255,255,255,.82);cursor:pointer;}",
-        ".apick-eye svg{width:15px;height:15px;display:block;pointer-events:none;}",
-        ".apick-eye:hover{color:#fff;background:rgba(var(--anima-accent-rgb),.4);}",
-        ".apick-eye.is-off{color:rgba(255,255,255,.42);}",
+        ".apick-combo-eye{order:2;flex:0 0 22px;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:6px;padding:0;background:transparent;color:rgba(255,255,255,.82);cursor:pointer;position:relative;z-index:2;opacity:1;pointer-events:auto;}",
+        ".apick-combo-eye svg{width:15px;height:15px;display:block;pointer-events:none;}",
+        ".apick-combo-eye:hover{color:#fff;background:rgba(var(--anima-accent-rgb),.4);}",
+        ".apick-combo-eye.is-off{color:rgba(255,255,255,.42);}",
         ".apick-label.is-fold .apick-fold{order:3;}",
         ".apick-combos{display:grid;grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:8px;max-height:200px;min-width:0;max-width:calc(100% - 16px);margin:0 8px;overflow-x:hidden;overflow-y:auto;padding:6px;flex-shrink:0;border-radius:10px;background:rgba(0,0,0,.2);scrollbar-width:thin;scrollbar-color:rgba(var(--anima-accent-rgb),.6) transparent;}",
         ".apick-combos.is-faces-off{grid-template-columns:repeat(auto-fill,minmax(104px,1fr));max-height:148px;}",
         ".apick-combo{width:auto;min-width:0;box-sizing:border-box;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);border-radius:10px;padding:6px;cursor:pointer;color:#eee;text-align:left;font:inherit;}",
         ".apick-combo:hover{border-color:rgba(var(--anima-accent-rgb),.45);background:rgba(255,255,255,.05);}",
         ".apick-combo.on{border-color:rgba(var(--anima-accent-rgb),.85);box-shadow:0 0 0 1px rgba(var(--anima-accent-rgb),.35);}",
-        ".apick-combo-pics{display:flex;gap:6px;height:78px;min-width:0;align-items:stretch;}",
-        ".apick-combos.is-faces-off .apick-combo-pics{height:72px;}",
-        ".apick-cover{flex:1 1 auto;min-width:72px;height:100%;border-radius:8px;overflow:hidden;background:rgba(0,0,0,.34);box-shadow:0 0 0 1px rgba(255,255,255,.28),0 6px 14px rgba(0,0,0,.28);}",
-        ".apick-cover .apick-thumb{object-fit:contain;background:rgba(0,0,0,.34);}",
-        ".apick-combo-pics>.apick-ph{flex:1;height:100%;border-radius:8px;}",
-        ".apick-faces{flex:0 0 62px;width:62px;height:100%;min-width:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:3px;}",
-        ".apick-faces:only-child{flex:1 1 auto;width:auto;}",
-        ".apick-faces>.apick-face,.apick-faces>.apick-more{flex:none;min-width:0;min-height:0;width:auto;height:auto;aspect-ratio:auto;border-radius:4px;overflow:hidden;background:rgba(255,255,255,.06);}",
+        ".apick-combo-pics{display:flex;gap:6px;height:auto;min-height:78px;min-width:0;align-items:stretch;}",
+        ".apick-combos.is-faces-off .apick-combo-pics{height:72px;min-height:72px;}",
+        ".apick-cover{position:relative;flex:1 1 auto;min-width:72px;min-height:78px;align-self:stretch;border-radius:8px;overflow:hidden;background:rgba(0,0,0,.34);box-shadow:0 0 0 1px rgba(255,255,255,.28),0 6px 14px rgba(0,0,0,.28);}",
+        ".apick-cover .apick-thumb{position:absolute;inset:0;object-fit:contain;background:rgba(0,0,0,.34);}",
+        ".apick-combo-pics>.apick-ph{flex:1;min-height:78px;border-radius:8px;}",
+        ".apick-faces{flex:0 0 auto;width:auto;height:auto;display:grid;grid-template-columns:repeat(2,28px);grid-auto-rows:28px;gap:3px;align-content:start;}",
+        ".apick-faces>.apick-face{width:28px;height:28px;min-width:0;min-height:0;border-radius:4px;overflow:hidden;background:rgba(255,255,255,.06);}",
         ".apick-faces .apick-thumb,.apick-faces .apick-ph{width:100%;height:100%;object-fit:cover;}",
         ".apick-more{display:flex;align-items:center;justify-content:center;font-size:11px;color:rgba(255,255,255,.7);}",
         ".apick-combo-foot{display:flex;align-items:center;gap:4px;margin-top:5px;min-width:0;}",
@@ -806,9 +805,9 @@ function injectStyles() {
         ".apick-x{position:absolute;top:4px;right:4px;z-index:3;width:18px;height:18px;border:0;border-radius:50%;padding:0;background:rgba(0,0,0,.62);color:#fff;font-size:13px;line-height:16px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .12s ease;}",
         ".apick-tile:hover .apick-x,.apick-chip:hover .apick-x,.apick-chip:hover .apick-eye{opacity:1;pointer-events:auto;}",
         ".apick-x:hover{background:rgba(180,40,60,.9);}",
-        ".apick-eye{position:absolute;top:4px;left:4px;z-index:3;width:18px;height:18px;border:0;border-radius:50%;padding:0;background:rgba(0,0,0,.62);color:#fff;cursor:pointer;opacity:0;pointer-events:none;display:inline-flex;align-items:center;justify-content:center;transition:opacity .12s ease;}",
-        ".apick-eye svg{width:12px;height:12px;display:block;pointer-events:none;}",
-        ".apick-eye:hover{background:rgba(var(--anima-accent-rgb),.85);}",
+        ".apick-chip .apick-eye{position:absolute;top:4px;left:4px;z-index:3;width:18px;height:18px;border:0;border-radius:50%;padding:0;background:rgba(0,0,0,.62);color:#fff;cursor:pointer;opacity:0;pointer-events:none;display:inline-flex;align-items:center;justify-content:center;transition:opacity .12s ease;}",
+        ".apick-chip .apick-eye svg{width:12px;height:12px;display:block;pointer-events:none;}",
+        ".apick-chip .apick-eye:hover{background:rgba(var(--anima-accent-rgb),.85);}",
         ".apick-chip.is-hidden .apick-thumb,.apick-chip.is-hidden .apick-chibi,.apick-chip.is-hidden .apick-name{opacity:.38;}",
         ".apick-add{box-sizing:border-box;flex:0 0 36px;width:36px;height:36px;margin:24px 0 0;padding:0;border-radius:10px;border:1px solid rgba(var(--anima-accent-rgb),.7);background:rgba(var(--anima-accent-rgb),.34);color:#fff;font:inherit;font-size:22px;font-weight:650;line-height:34px;cursor:pointer;box-shadow:0 0 0 1px rgba(var(--anima-accent-rgb),.28);}",
         ".apick-add:hover{background:rgba(var(--anima-accent-rgb),.58);color:#fff;}",
@@ -1764,7 +1763,7 @@ app.registerExtension({
             chev.innerHTML = "<svg viewBox=\"0 0 16 16\" fill=\"none\"><path d=\"M4 6.2 8 10.2 12 6.2\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>";
             var eye = document.createElement("button");
             eye.type = "button";
-            eye.className = "apick-eye";
+            eye.className = "apick-combo-eye";
             eye.addEventListener("mousedown", function (e) { e.stopPropagation(); });
             eye.addEventListener("click", function (e) {
                 e.preventDefault();
@@ -2129,16 +2128,7 @@ app.registerExtension({
                     if (!self._apComboFacesOff) {
                         var faces = document.createElement("div");
                         faces.className = "apick-faces";
-                        var cap = 4;
-                        var shown = people.slice(0, people.length > cap ? cap - 1 : cap);
-                        var more = people.length - shown.length;
-                        shown.forEach(function (person) { faces.appendChild(makeFace(person, { tiny: true })); });
-                        if (more > 0) {
-                            var extra = document.createElement("div");
-                            extra.className = "apick-more";
-                            extra.textContent = "+" + more;
-                            faces.appendChild(extra);
-                        }
+                        people.forEach(function (person) { faces.appendChild(makeFace(person, { tiny: true })); });
                         if (faces.childNodes.length) pics.appendChild(faces);
                     }
                     if (!pics.childNodes.length) {

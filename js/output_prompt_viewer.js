@@ -1,6 +1,6 @@
 (function () {
-    if (window.__animaOutputPromptViewer >= 169) return;
-    window.__animaOutputPromptViewer = 169;
+    if (window.__animaOutputPromptViewer >= 177) return;
+    window.__animaOutputPromptViewer = 177;
 
     var LS_SKIN = "anima_opv_skin";
     var _skinDockReady = false;
@@ -357,7 +357,7 @@
         compareOn: false, compareItems: [], compareMode: "slider",
         cmpA: 0, cmpB: 1, overlayPct: 50, blinkMs: 400, wipePct: 50,
         cmpSide: { s: 1, x: 0, y: 0 },
-        view: "artist", artistKey: "", artistExact: false, comboName: "", artistIndex: null, artistIndexSub: null, artistIndexBusy: false,
+        view: "artist", artistKey: "", artistExact: false, comboName: "", artistPage: "artists", artistIndex: null, artistIndexSub: null, artistIndexBusy: false,
         soloArtist: readSoloArtist(),
         castOn: true, seriesKey: "", characterKey: "", castQ: "",
         castIndex: null, castIndexSub: null, castIndexBusy: false,
@@ -2605,6 +2605,7 @@
         closeCtxMenu();
         clearSoloForQuick();
         state.artistExact = false;
+        state.comboName = "";
         state.artistKey = items.map(function (it) { return it.key; }).join(",");
         state.seriesKey = "";
         state.characterKey = "";
@@ -2621,6 +2622,7 @@
         if (!item || !item.key) { toast(T("这张图没有角色标签")); return; }
         closeCtxMenu();
         state.artistExact = false;
+        state.comboName = "";
         state.artistKey = "";
         state.page = 1;
         closeLightbox();
@@ -2632,6 +2634,7 @@
         if (!item || !item.key) { toast(T("这张图没有系列标签")); return; }
         closeCtxMenu();
         state.artistExact = false;
+        state.comboName = "";
         state.artistKey = "";
         state.page = 1;
         closeLightbox();
@@ -4266,6 +4269,7 @@
             sort: listSort(),
             artistKey: state.artistKey || "",
             artistExact: !!state.artistExact,
+            comboName: state.comboName || "",
             soloArtist: !!state.soloArtist,
             seriesKey: state.seriesKey || "",
             characterKey: state.characterKey || "",
@@ -4372,6 +4376,7 @@
             sort: row.sort || "newest",
             artistKey: row.artistKey || "",
             artistExact: !!row.artistExact,
+            comboName: row.comboName || "",
             soloArtist: !!row.soloArtist,
             seriesKey: row.seriesKey || "",
             characterKey: row.characterKey || "",
@@ -4422,6 +4427,8 @@
         writeFolderSort(state.subfolder, bm.sort || "newest");
         state.artistKey = bm.artistKey || "";
         state.artistExact = !!bm.artistExact;
+        state.comboName = bm.comboName || "";
+        if (state.artistExact) state.artistPage = "combos";
         state.soloArtist = !!bm.soloArtist;
         state.seriesKey = bm.seriesKey || "";
         state.characterKey = bm.characterKey || "";
@@ -7585,6 +7592,7 @@
         state.page = 1;
         state.sel = null;
         state.artistExact = false;
+        state.comboName = "";
         state.artistKey = "";
         state.artistIndex = null;
         state.artistIndexSub = null;
@@ -8198,6 +8206,7 @@
     function clearAllFilters() {
         var dirty = filtersActive();
         state.artistExact = false;
+        state.comboName = "";
         state.artistKey = "";
         state.seriesKey = "";
         state.characterKey = "";
@@ -8253,7 +8262,14 @@
             return;
         }
         var bits = [];
-        if (state.artistKey) bits.push(T("画师") + " " + artistKeyList(state.artistKey).map(artistDisplayName).join(" / "));
+        if (state.artistKey) {
+            if (state.artistExact) {
+                var comboLab = String(state.comboName || "").trim();
+                bits.push(comboLab ? (T("画师串") + " " + comboLab) : (T("画师串") + " " + artistKeyList(state.artistKey).map(artistDisplayName).join(" + ")));
+            } else {
+                bits.push(T("画师") + " " + artistKeyList(state.artistKey).map(artistDisplayName).join(" / "));
+            }
+        }
         if (state.characterKey) bits.push(T("角色") + " " + charDisplayName({ tag: state.characterKey, key: state.characterKey }));
         if (state.seriesKey) bits.push(T("系列") + " " + seriesDisplayName({ tag: state.seriesKey, key: state.seriesKey }));
         if (state.tagKey) bits.push(T("标签") + " " + tagDisplayName({ tag: state.tagKey, key: state.tagKey, cn: state.tagCn }));
@@ -8375,6 +8391,7 @@
             if (prev === "artist") {
                 var dirty = !!state.artistKey;
                 state.artistExact = false;
+                state.comboName = "";
                 state.artistKey = "";
                 if (dirty) {
                     state.page = 1;
@@ -8401,7 +8418,7 @@
         b.tabIndex = 0;
         b.className = "opv-art-card";
         if (isAll) b.classList.add("is-all");
-        if (isAll ? !state.artistKey : artistKeyHas(key)) b.classList.add("is-on");
+        if (isAll ? !state.artistKey : (!state.artistExact && artistKeyHas(key))) b.classList.add("is-on");
         if (!isAll && count === 0) b.classList.add("is-zero");
         if (key) b.setAttribute("data-key", key);
         if (opts.tag) b.setAttribute("data-tag", opts.tag);
@@ -8470,6 +8487,7 @@
             var next = isAll ? "" : key;
             if (state.artistKey === next && !state.artistExact) return;
             state.artistExact = false;
+            state.comboName = "";
             state.artistKey = next;
             state.page = 1;
             state.sel = null;
@@ -8603,9 +8621,273 @@
             renderArtistRailNow();
         });
     }
+    var _comboCache = null;
+    var _comboPageGen = 0;
+    function syncArtistPageTabs() {
+        var page = state.artistPage === "combos" ? "combos" : "artists";
+        var tabs = document.querySelectorAll("#artist-pop-tabs [data-apage]");
+        var i;
+        for (i = 0; i < tabs.length; i++) {
+            var on = tabs[i].getAttribute("data-apage") === page;
+            tabs[i].classList.toggle("is-on", on);
+            tabs[i].setAttribute("aria-pressed", on ? "true" : "false");
+        }
+        syncComboFacesBtn();
+    }
+    function comboFacesOn() {
+        try { return localStorage.getItem("apick_combo_faces") !== "0"; } catch (eFaces) { return true; }
+    }
+    function syncComboFacesBtn() {
+        var btn = document.getElementById("btn-combo-faces");
+        var sw = document.getElementById("combo-faces-sw");
+        var lab = document.getElementById("btn-combo-faces-lab");
+        var on = comboFacesOn();
+        if (lab) lab.textContent = T("画师头像");
+        if (btn) {
+            btn.hidden = state.artistPage !== "combos";
+            btn.classList.toggle("is-on", on);
+            btn.title = on ? T("只显示画师串缩略图") : T("同时显示画师串里的画师头像");
+        }
+        if (sw) sw.textContent = on ? T("开") : T("关");
+    }
+    function setComboFaces(on) {
+        try { localStorage.setItem("apick_combo_faces", on ? "1" : "0"); } catch (eFaces2) {}
+        hidePeek();
+        syncComboFacesBtn();
+        if (state.artistPage === "combos") renderArtistRail();
+    }
+    function setArtistPage(page) {
+        var next = page === "combos" ? "combos" : "artists";
+        if (state.artistPage === next) return;
+        state.artistPage = next;
+        if (next === "combos") _comboCache = null;
+        hidePeek();
+        syncArtistPageTabs();
+        renderArtistRail();
+    }
+    function comboFilterOn(combo) {
+        if (!state.artistExact || !state.artistKey || !combo) return false;
+        var names = comboArtistList(combo.artists || []);
+        if (comboSig(names) !== comboSig(artistKeyList(state.artistKey))) return false;
+        var want = String(state.comboName || "").trim();
+        if (!want) return true;
+        return String(combo.name || "").trim() === want;
+    }
+    function applyArtistCombo(combo) {
+        var names = comboArtistList(combo && combo.artists);
+        var keys = [];
+        var seen = {};
+        names.forEach(function (name) {
+            var k = artistNormKey(name);
+            if (!k || seen[k]) return;
+            seen[k] = 1;
+            keys.push(k);
+        });
+        if (!keys.length) return;
+        hidePeek();
+        if (state.soloArtist) {
+            state.soloArtist = false;
+            try { localStorage.setItem(LS_SOLO, "0"); } catch (eSolo) {}
+        }
+        state.artistExact = true;
+        state.artistPage = "combos";
+        state.comboName = String((combo && combo.name) || "").trim();
+        state.artistKey = keys.join(",");
+        state.page = 1;
+        state.sel = null;
+        closeLightbox();
+        renderArtistRail();
+        loadList();
+        syncFilterUi();
+    }
+    function clearArtistComboFilter() {
+        if (!state.artistKey && !state.artistExact) return;
+        state.artistExact = false;
+        state.comboName = "";
+        state.artistKey = "";
+        state.page = 1;
+        state.sel = null;
+        closeLightbox();
+        renderArtistRail();
+        loadList();
+        syncFilterUi();
+    }
+    function comboCoverSrc(combo) {
+        var raw = combo && combo.thumbs && combo.thumbs.length ? combo.thumbs[0] : "";
+        raw = String(raw || "").trim();
+        if (!raw) return "";
+        if (raw.indexOf("/danbooru_anima/combo_thumb/") >= 0 || raw.indexOf("/view?") >= 0) return raw;
+        var source = /gelbooru\.com/i.test(raw) ? "gelbooru" : "danbooru";
+        try {
+            if (window.animaFavGrid && typeof window.animaFavGrid.proxySrc === "function") {
+                return window.animaFavGrid.proxySrc(raw, source, "mid") || raw;
+            }
+        } catch (eCover) {}
+        return raw;
+    }
+    var _comboPeekT = 0;
+    function bindComboPeek(el, url, cap) {
+        if (!el || !url) return;
+        el.addEventListener("mouseenter", function () {
+            el._peekOn = 1;
+            if (_comboPeekT) clearTimeout(_comboPeekT);
+            _comboPeekT = setTimeout(function () {
+                _comboPeekT = 0;
+                if (!el._peekOn || !el.isConnected) return;
+                showPeek({ url: url, filename: cap || "" }, el, { allowWhileBusy: true });
+            }, 180);
+        });
+        el.addEventListener("mouseleave", function () {
+            el._peekOn = 0;
+            hidePeek();
+        });
+    }
+    function artistFaceSrc(name, size) {
+        var key = artistNormKey(name);
+        var hit = null;
+        var list = _favArtCache || [];
+        var i;
+        for (i = 0; i < list.length; i++) {
+            if (artistNormKey(list[i].tag) === key) { hit = list[i]; break; }
+        }
+        var tag = (hit && hit.tag) || name;
+        if (liveModeOn()) {
+            var lv = liveFavThumb(tag);
+            if (lv) return lv;
+        }
+        var loc = localFavThumb(tag);
+        if (loc) return loc;
+        var raw = (hit && hit.thumb) || "";
+        if (!raw) return "";
+        if (isAdexThumb(raw)) return adexSrc(raw);
+        var g = window.animaFavGrid;
+        var source = favThumbSource(raw);
+        if (g && typeof g.proxySrc === "function" && String(raw).indexOf("http") === 0) {
+            return g.proxySrc(raw, source, size === "mid" ? "mid" : "tiny") || raw;
+        }
+        if (g && typeof g.favSrc === "function") return g.favSrc(raw, source, tag) || raw;
+        return raw;
+    }
+    function paintComboPage(box, list) {
+        box.innerHTML = "";
+        var st = el("div");
+        st.className = "opv-art-status";
+        st.textContent = T("点一条画师串，只看画师完全一致的图");
+        box.appendChild(st);
+        var all = el("button");
+        all.type = "button";
+        all.className = "opv-art-card is-combo is-all";
+        if (!state.artistKey) all.classList.add("is-on");
+        var allNm = el("span", "", T("全部"));
+        allNm.className = "nm";
+        all.appendChild(allNm);
+        all.onclick = function () { clearArtistComboFilter(); };
+        box.appendChild(all);
+        var rows = (list || []).filter(function (c) { return c && comboArtistList(c.artists || []).length; });
+        rows.sort(function (a, b) { return String(a.name || "").localeCompare(String(b.name || "")); });
+        if (!rows.length) {
+            var empty = el("div", "", T("还没有保存的画师串"));
+            empty.className = "opv-art-status";
+            box.appendChild(empty);
+            return;
+        }
+        rows.forEach(function (combo) {
+            var names = comboArtistList(combo.artists || []);
+            var b = el("button");
+            b.type = "button";
+            b.className = "opv-art-card is-combo";
+            if (comboFilterOn(combo)) b.classList.add("is-on");
+            var members = names.map(artistDisplayName).join(" + ");
+            var title = String(combo.name || "").trim() || members;
+            var pics = el("div");
+            pics.className = "combo-pics";
+            var cover = comboCoverSrc(combo);
+            if (cover) {
+                var pic = el("div");
+                pic.className = "pic combo-cover";
+                var img = document.createElement("img");
+                img.alt = "";
+                img.draggable = false;
+                img.decoding = "async";
+                img.src = cover;
+                img.onerror = function () {
+                    if (pic.parentNode) pic.parentNode.removeChild(pic);
+                };
+                pic.appendChild(img);
+                bindComboPeek(pic, cover, title);
+                pics.appendChild(pic);
+            }
+            if (comboFacesOn()) {
+                var faces = el("div");
+                faces.className = "combo-faces";
+                names.forEach(function (name) {
+                    var faceSrc = artistFaceSrc(name, "tiny");
+                    if (!faceSrc) return;
+                    var face = el("div");
+                    face.className = "combo-face";
+                    var fimg = document.createElement("img");
+                    fimg.alt = "";
+                    fimg.draggable = false;
+                    fimg.decoding = "async";
+                    fimg.src = faceSrc;
+                    fimg.onerror = function () {
+                        if (face.parentNode) face.parentNode.removeChild(face);
+                    };
+                    face.appendChild(fimg);
+                    bindComboPeek(face, artistFaceSrc(name, "mid") || faceSrc, artistDisplayName(name));
+                    faces.appendChild(face);
+                });
+                if (faces.childNodes.length) pics.appendChild(faces);
+            }
+            if (pics.childNodes.length) b.appendChild(pics);
+            var text = el("span");
+            text.className = "combo-txt";
+            var nm = el("span", "", title);
+            nm.className = "nm";
+            text.appendChild(nm);
+            if (members && members !== title) {
+                var sub = el("span", "", members);
+                sub.className = "sub";
+                text.appendChild(sub);
+            }
+            b.appendChild(text);
+            b.onclick = function () {
+                if (comboFilterOn(combo)) return;
+                applyArtistCombo(combo);
+            };
+            box.appendChild(b);
+        });
+    }
+    function renderArtistComboPage(box) {
+        syncArtistPageTabs();
+        if (_comboCache) {
+            paintComboPage(box, _comboCache);
+            return;
+        }
+        box.innerHTML = "";
+        var st = el("div");
+        st.className = "opv-art-status";
+        st.textContent = T("正在读取画师串…");
+        box.appendChild(st);
+        var gen = ++_comboPageGen;
+        loadArtistCombos().then(function (list) {
+            if (gen !== _comboPageGen || state.artistPage !== "combos") return;
+            _comboCache = list || [];
+            var live = document.getElementById("artist-rail");
+            if (!live || live !== box) return;
+            paintComboPage(live, _comboCache);
+        });
+    }
     function renderArtistRailNow() {
         var box = document.getElementById("artist-rail");
         if (!box || state.view !== "artist") return;
+        box.classList.toggle("is-combos", state.artistPage === "combos");
+        box.classList.toggle("is-faces-off", state.artistPage === "combos" && !comboFacesOn());
+        syncArtistPageTabs();
+        if (state.artistPage === "combos") {
+            renderArtistComboPage(box);
+            return;
+        }
         var oldImgs = box.querySelectorAll(".opv-art-card[data-key] img");
         for (var oi = 0; oi < oldImgs.length; oi++) {
             var oc = oldImgs[oi].closest(".opv-art-card");
@@ -9711,6 +9993,11 @@
             popFold.textContent = T("收起");
             popFold.title = T("收起成按钮，再点即可展开");
         }
+        var tabArtists = document.getElementById("artist-tab-artists");
+        if (tabArtists) tabArtists.textContent = T("画师");
+        var tabCombos = document.getElementById("artist-tab-combos");
+        if (tabCombos) tabCombos.textContent = T("画师串");
+        syncComboFacesBtn();
         var pickTitle = document.getElementById("pick-artist-title");
         if (pickTitle) pickTitle.textContent = T("选择画师生成同款");
         var pickClose = document.getElementById("pick-artist-close");
@@ -9894,6 +10181,7 @@
             var emptyMsg = T("该文件夹没有图片");
             if (state.subfolder === IMG_FAV_SUB && !state.artistKey && !state.soloArtist && !state.seriesKey && !state.characterKey && !state.tagKey && !state.heartRate && !state.modelKey) emptyMsg = T("收藏夹里还没有图片");
             else if (isTrashView() && !state.artistKey && !state.soloArtist && !state.seriesKey && !state.characterKey && !state.tagKey && !state.heartRate && !state.modelKey) emptyMsg = T("查看器回收站是空的");
+            else if (state.artistKey && state.artistExact) emptyMsg = T("没有和这个画师串完全一致的图片");
             else if (state.artistKey && state.soloArtist) emptyMsg = T("没有该画师的单画师图");
             else if (state.seriesKey && state.characterKey) emptyMsg = T("没有该系列里这个角色的图片");
             else if (state.characterKey) emptyMsg = T("没有该角色的图片");
@@ -10253,15 +10541,21 @@
         return out;
     }
 
+    function paintInspectChip(chip, col, wide) {
+        chip.className = "anima-tag-chip is-static is-pick" + (wide ? " is-wide" : "");
+        var c = col || "#555555";
+        chip.style.setProperty("--chip-col", c);
+        if (/^#[0-9a-fA-F]{6}$/.test(c)) {
+            chip.style.setProperty("--chip-wash", c + "2e");
+            chip.style.setProperty("--chip-wash-lo", c + "14");
+            chip.style.setProperty("--chip-bd", c + "73");
+        }
+    }
     function makeArtistChip(tag) {
         var chip = el("div");
         var wide = tag.length > 40 || tag.indexOf("\n") >= 0;
-        if (typeof window.animaApplyTagChip === "function") {
-            window.animaApplyTagChip(chip, "#e91e63", { static: true, pick: true, wide: wide });
-        } else {
-            chip.style.cssText = "padding:4px 9px;border-radius:8px;cursor:pointer;background:#e91e6322;border:1px solid #e91e6388;";
-        }
-        var lab = el("span", "", window.animaChipLabel ? window.animaChipLabel(tag, 1, false) : tag);
+        paintInspectChip(chip, "#e91e63", wide);
+        var lab = el("span", "", window.animaChipLabel ? window.animaChipLabel(tag) : tag);
         lab.className = "anima-chip-en";
         chip.appendChild(lab);
         var cn = _tlCache[tag] || "";
@@ -10378,12 +10672,8 @@
             if (!isArtist && artists && artists.indexOf(tag) >= 0) isArtist = true;
             var chip = el("div");
             var wide = tag.length > 40 || tag.indexOf("\n") >= 0;
-            if (typeof window.animaApplyTagChip === "function") {
-                window.animaApplyTagChip(chip, isArtist ? "#e91e63" : col, { static: true, pick: true, wide: wide });
-            } else {
-                chip.style.cssText = "padding:4px 9px;border-radius:8px;cursor:pointer;background:" + col + "22;border:1px solid " + col + "88;";
-            }
-            var lab = el("span", "", window.animaChipLabel ? window.animaChipLabel(tag, 1, false) : tag);
+            paintInspectChip(chip, isArtist ? "#e91e63" : col, wide);
+            var lab = el("span", "", window.animaChipLabel ? window.animaChipLabel(tag) : tag);
             lab.className = "anima-chip-en";
             chip.appendChild(lab);
             if (cn) {
@@ -12083,6 +12373,31 @@
         var rs = document.getElementById("artist-pop-rs");
         if (!hd || !box || hd._bound) return;
         hd._bound = true;
+        var pageTabs = document.getElementById("artist-pop-tabs");
+        if (pageTabs && !pageTabs._bound) {
+            pageTabs._bound = true;
+            pageTabs.addEventListener("click", function (e) {
+                var t = e.target;
+                var page = "";
+                while (t && t !== pageTabs) {
+                    if (t.getAttribute && t.getAttribute("data-apage")) {
+                        page = t.getAttribute("data-apage");
+                        break;
+                    }
+                    t = t.parentNode;
+                }
+                if (!page) return;
+                e.preventDefault();
+                e.stopPropagation();
+                setArtistPage(page);
+            });
+            var faceBtn = document.getElementById("btn-combo-faces");
+            if (faceBtn) faceBtn.onclick = function (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                setComboFaces(!comboFacesOn());
+            };
+        }
         var drag = null;
         function stopRaf() {
             if (drag && drag.raf) {
@@ -12911,6 +13226,7 @@
             persistModelKey();
             state.soloArtist = readPickerSolo();
             state.artistExact = readPickerExact();
+            if (state.artistExact) state.artistPage = "combos";
             state.seriesKey = "";
             state.characterKey = "";
             state.artistKey = _bootItems.map(function (it) { return it.key; }).join(",");
