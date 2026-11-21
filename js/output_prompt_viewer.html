@@ -14,8 +14,33 @@
       var skinClass = { hub: "opv-skin-hub", glass: "opv-skin-glass", gallery: "opv-skin-gallery", kawaii: "opv-skin-kawaii" };
       if (skinClass[id]) document.documentElement.classList.add(skinClass[id]);
       try {
-        if (new URLSearchParams(location.search).get("pop") === "1") document.documentElement.classList.add("opv-popwin");
+        var ownWin = new URLSearchParams(location.search).get("pop") === "1";
+        if (!ownWin && window.opener && !window.opener.closed) ownWin = true;
+        if (ownWin) {
+          document.documentElement.classList.add("opv-popwin");
+          document.documentElement.classList.add("opv-own-win");
+        }
       } catch (ePop) {}
+      if (!window.__opvFileDragGuard) {
+        window.__opvFileDragGuard = true;
+        var opvFileDrag = function (e) {
+          var dt = e.dataTransfer;
+          if (!dt || !dt.types) return;
+          var i, file = false;
+          for (i = 0; i < dt.types.length; i++) {
+            if (dt.types[i] === "DownloadURL") return;
+            if (dt.types[i] === "Files") file = true;
+          }
+          if (!file) return;
+          e.preventDefault();
+        };
+        window.addEventListener("dragenter", opvFileDrag, true);
+        window.addEventListener("dragover", opvFileDrag, true);
+        window.addEventListener("drop", opvFileDrag, true);
+        window.addEventListener("pagehide", function () {
+          try { fetch("/danbooru_anima/output_prompt/drag_abort", { method: "POST", keepalive: true }); } catch (eAb) {}
+        });
+      }
       var fade = 50;
       try {
         var rawFade = localStorage.getItem("anima_opv_rate_fade");
@@ -1420,6 +1445,7 @@
       cursor: pointer;
       max-width: 100%;
       user-select: none;
+      -webkit-user-drag: none;
     }
     .tile img { -webkit-user-drag: none; user-select: none; pointer-events: none; }
     .tile:active img { transform: none !important; }
@@ -8993,7 +9019,13 @@
       <button type="button" id="sd-cancel">取消自动关机</button>
     </div>
   </div>
-  <script src="output_prompt_viewer.js?v=177"></script>
+  <style>
+    html.opv-own-win, html.opv-own-win * {
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+  </style>
+  <script src="output_prompt_viewer.js?v=180"></script>
   <style id="opv-kawaii-chip-ink">
     html.opv-skin-kawaii #chips .anima-tag-chip .anima-chip-en,
     html.opv-skin-kawaii #chips .anima-tag-chip .anima-chip-cn,

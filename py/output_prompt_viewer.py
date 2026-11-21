@@ -4844,6 +4844,11 @@ _DRAG_STA_READY = threading.Lock()
 _DRAG_SRC_HOLD = None
 _DRAG_USER32 = None
 _DRAG_ABORT = threading.Event()
+_DRAG_PHYS_DOWN = [False]
+_DRAG_BROWSER_PIDS = set()
+_DRAG_COVER_HWNDS = set()
+_DRAG_COVER_READY = False
+_DRAG_CHILD = {"proc": None}
 _DRAG_S_DROP = 0x00040100
 _DRAG_S_CANCEL = 0x00040101
 _DRAG_S_USEDEFAULT = 0x00040102
@@ -4977,11 +4982,18 @@ def _win_drop_source():
         return state["ref"]
 
     def query_continue(this, escape_pressed, keys):
-        # 拖拽跑在另一条线程上，系统给的 keys 看不到浏览器里按下的鼠标。
-        # 用真实按键状态，否则拖拽会马上被取消。
+        # 不要在拖拽线程里读 GetAsyncKeyState。系统拖拽会把左键粘成一直按下，
+        # 拖拽循环就退不出去，之后整个浏览器都收不到点击。
+        # 光标如果还是落在浏览器上，直接取消。浏览器一旦接到这次拖拽，后面别的软件再拖文件会一起锁死。
         if escape_pressed or _DRAG_ABORT.is_set():
             return _DRAG_S_CANCEL
-        if _left_button_down() or (keys & _MK_LBUTTON):
+        try:
+            if _drag_cursor_hits_browser():
+                print("[opv-drag] cancel over browser")
+                return _DRAG_S_CANCEL
+        except Exception:
+            pass
+        if _DRAG_PHYS_DOWN[0]:
             state["seen"] = True
             return 0
         if not state["seen"]:
@@ -5026,9 +5038,21 @@ def _drag_post_thread(tid):
     user32.PostThreadMessageW(tid, 0x0200 if down else 0x0202, 1 if down else 0, lparam)
 
 
+def _drag_cursor_over_cover():
+    if not _DRAG_COVER_HWNDS:
+        return False
+    user32 = _drag_bind_cover()
+    return _drag_hwnd_at_cursor(user32) in _DRAG_COVER_HWNDS
+
+
 def _drag_pump(stop, tid):
+    try:
+        _drag_bind_cover().SetThreadDpiAwarenessContext(ctypes.c_void_p(-4))
+    except Exception:
+        pass
     while not stop.is_set():
         try:
+            _DRAG_PHYS_DOWN[0] = _left_button_down()
             _drag_post_thread(tid)
         except Exception:
             pass
@@ -5060,6 +5084,288 @@ def _drag_sta_loop():
             job["done"].set()
 
 
+_DRAG_BROWSERS = ("chrome.exe", "msedge.exe", "brave.exe", "opera.exe", "vivaldi.exe", "chromium.exe")
+_DRAG_K32 = None
+_DRAG_DWM = None
+_DRAG_COVER_PROC = None
+
+
+class _DragPoint(ctypes.Structure):
+    _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+
+
+class _DragRect(ctypes.Structure):
+    _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long), ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
+
+
+def _drag_k32():
+    global _DRAG_K32
+    if _DRAG_K32 is not None:
+        return _DRAG_K32
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_bool, ctypes.c_uint32]
+    k32.OpenProcess.restype = ctypes.c_void_p
+    k32.CloseHandle.argtypes = [ctypes.c_void_p]
+    k32.CloseHandle.restype = ctypes.c_bool
+    k32.QueryFullProcessImageNameW.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_wchar_p, ctypes.POINTER(ctypes.c_uint32)]
+    k32.QueryFullProcessImageNameW.restype = ctypes.c_bool
+    k32.GetModuleHandleW.argtypes = [ctypes.c_wchar_p]
+    k32.GetModuleHandleW.restype = ctypes.c_void_p
+    k32.GetCurrentThreadId.argtypes = []
+    k32.GetCurrentThreadId.restype = ctypes.c_uint32
+    _DRAG_K32 = k32
+    return k32
+
+
+def _drag_dwm():
+    global _DRAG_DWM
+    if _DRAG_DWM is not None:
+        return _DRAG_DWM
+    dwm = ctypes.WinDLL("dwmapi", use_last_error=True)
+    dwm.DwmGetWindowAttribute.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32]
+    dwm.DwmGetWindowAttribute.restype = ctypes.c_long
+    _DRAG_DWM = dwm
+    return dwm
+
+
+def _drag_bind_cover():
+    """盖板用的 user32。参数表只绑一次。"""
+    global _DRAG_COVER_READY
+    user32 = _drag_user32()
+    if _DRAG_COVER_READY:
+        return user32
+    wndproc_t = ctypes.WINFUNCTYPE(ctypes.c_ssize_t, ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t)
+    enum_t = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_ssize_t)
+    user32.DefWindowProcW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
+    user32.DefWindowProcW.restype = ctypes.c_ssize_t
+    user32.EnumWindows.argtypes = [enum_t, ctypes.c_ssize_t]
+    user32.EnumWindows.restype = ctypes.c_bool
+    user32.IsWindowVisible.argtypes = [ctypes.c_void_p]
+    user32.IsWindowVisible.restype = ctypes.c_bool
+    user32.IsIconic.argtypes = [ctypes.c_void_p]
+    user32.IsIconic.restype = ctypes.c_bool
+    user32.IsWindow.argtypes = [ctypes.c_void_p]
+    user32.IsWindow.restype = ctypes.c_bool
+    user32.GetWindowThreadProcessId.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint32)]
+    user32.GetWindowThreadProcessId.restype = ctypes.c_uint32
+    user32.GetWindowRect.argtypes = [ctypes.c_void_p, ctypes.POINTER(_DragRect)]
+    user32.GetWindowRect.restype = ctypes.c_bool
+    user32.GetClassNameW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_int]
+    user32.GetClassNameW.restype = ctypes.c_int
+    user32.GetAncestor.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+    user32.GetAncestor.restype = ctypes.c_void_p
+    user32.WindowFromPoint.argtypes = [_DragPoint]
+    user32.WindowFromPoint.restype = ctypes.c_void_p
+    user32.CreateWindowExW.argtypes = [
+        ctypes.c_uint32, ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32,
+        ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+        ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p,
+    ]
+    user32.CreateWindowExW.restype = ctypes.c_void_p
+    user32.DestroyWindow.argtypes = [ctypes.c_void_p]
+    user32.DestroyWindow.restype = ctypes.c_bool
+    user32.SetLayeredWindowAttributes.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_byte, ctypes.c_uint32]
+    user32.SetLayeredWindowAttributes.restype = ctypes.c_bool
+    user32.SetWindowPos.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
+    user32.SetWindowPos.restype = ctypes.c_bool
+    user32.RegisterClassW.argtypes = [ctypes.c_void_p]
+    user32.RegisterClassW.restype = ctypes.c_uint16
+    try:
+        user32.SetThreadDpiAwarenessContext.argtypes = [ctypes.c_void_p]
+        user32.SetThreadDpiAwarenessContext.restype = ctypes.c_void_p
+    except Exception:
+        pass
+    user32._opv_wndproc_t = wndproc_t
+    user32._opv_enum_t = enum_t
+    _DRAG_COVER_READY = True
+    return user32
+
+
+def _drag_hwnd_pid(user32, hwnd):
+    pid = ctypes.c_uint32()
+    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    return int(pid.value or 0)
+
+
+def _drag_hwnd_class(user32, hwnd):
+    buf = ctypes.create_unicode_buffer(256)
+    user32.GetClassNameW(hwnd, buf, 256)
+    return buf.value or ""
+
+
+def _drag_hwnd_exe(hwnd):
+    k32 = _drag_k32()
+    user32 = _drag_bind_cover()
+    pid = _drag_hwnd_pid(user32, hwnd)
+    if not pid:
+        return ""
+    handle = k32.OpenProcess(0x1000, False, pid)
+    if not handle:
+        return ""
+    try:
+        size = ctypes.c_uint32(1024)
+        buf = ctypes.create_unicode_buffer(1024)
+        if not k32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
+            return ""
+        return os.path.basename(buf.value or "").lower()
+    finally:
+        k32.CloseHandle(handle)
+
+
+def _drag_is_browser_hwnd(user32, hwnd):
+    if not hwnd:
+        return False
+    exe = _drag_hwnd_exe(hwnd)
+    if exe in _DRAG_BROWSERS:
+        return True
+    if exe:
+        return False
+    return _drag_hwnd_class(user32, hwnd).startswith("Chrome_WidgetWin_")
+
+
+def _drag_ensure_cover_class(user32):
+    global _DRAG_COVER_PROC
+    if _DRAG_COVER_PROC is not None:
+        return True
+
+    def _wndproc(hwnd, msg, wparam, lparam):
+        return user32.DefWindowProcW(hwnd, msg, wparam, lparam)
+
+    _DRAG_COVER_PROC = user32._opv_wndproc_t(_wndproc)
+    user32._opv_cover_proc_ref = _DRAG_COVER_PROC
+
+    class _WNDCLASSW(ctypes.Structure):
+        _fields_ = [
+            ("style", ctypes.c_uint),
+            ("lpfnWndProc", user32._opv_wndproc_t),
+            ("cbClsExtra", ctypes.c_int),
+            ("cbWndExtra", ctypes.c_int),
+            ("hInstance", ctypes.c_void_p),
+            ("hIcon", ctypes.c_void_p),
+            ("hCursor", ctypes.c_void_p),
+            ("hbrBackground", ctypes.c_void_p),
+            ("lpszMenuName", ctypes.c_wchar_p),
+            ("lpszClassName", ctypes.c_wchar_p),
+        ]
+
+    wc = _WNDCLASSW()
+    wc.lpfnWndProc = _DRAG_COVER_PROC
+    wc.hInstance = _drag_k32().GetModuleHandleW(None)
+    wc.lpszClassName = "opv-drag-cover"
+    user32._opv_cover_wc = wc
+    atom = user32.RegisterClassW(ctypes.byref(wc))
+    if atom:
+        return True
+    return ctypes.get_last_error() == 1410
+
+
+def _drag_hwnd_at_cursor(user32):
+    pt = _DragPoint()
+    if not user32.GetCursorPos(ctypes.addressof(pt)):
+        return 0
+    hwnd = user32.WindowFromPoint(_DragPoint(pt.x, pt.y))
+    if not hwnd:
+        return 0
+    root = user32.GetAncestor(hwnd, 2) or hwnd
+    return int(root)
+
+
+def _drag_cursor_hits_browser():
+    if not _DRAG_BROWSER_PIDS:
+        return False
+    user32 = _drag_bind_cover()
+    hwnd = _drag_hwnd_at_cursor(user32)
+    if not hwnd:
+        return False
+    return _drag_hwnd_pid(user32, hwnd) in _DRAG_BROWSER_PIDS
+
+
+def _drag_destroy_covers(hwnds):
+    user32 = _drag_bind_cover()
+    for hwnd in list(hwnds or []):
+        if hwnd and user32.IsWindow(hwnd):
+            user32.DestroyWindow(hwnd)
+    _DRAG_COVER_HWNDS.clear()
+
+
+def _drag_raise_browser_covers():
+    """在每个浏览器窗口上盖一层不接收投放的窗口。系统拖拽点到盖板，就不会进浏览器。"""
+    global _DRAG_BROWSER_PIDS
+    user32 = _drag_bind_cover()
+    try:
+        user32.SetThreadDpiAwarenessContext(ctypes.c_void_p(-4))
+    except Exception:
+        pass
+    if not _drag_ensure_cover_class(user32):
+        return None
+    dwm = _drag_dwm()
+    found = []
+
+    @user32._opv_enum_t
+    def _visit(hwnd, _lp):
+        if not user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
+            return True
+        cloaked = ctypes.c_int(0)
+        dwm.DwmGetWindowAttribute(hwnd, 14, ctypes.byref(cloaked), 4)
+        if cloaked.value:
+            return True
+        if not _drag_is_browser_hwnd(user32, hwnd):
+            return True
+        rc = _DragRect()
+        if not user32.GetWindowRect(hwnd, ctypes.byref(rc)):
+            return True
+        width = int(rc.right - rc.left)
+        height = int(rc.bottom - rc.top)
+        if width <= 0 or height <= 0:
+            return True
+        found.append((int(rc.left), int(rc.top), width, height, _drag_hwnd_pid(user32, hwnd)))
+        return True
+
+    user32._opv_enum_cb = _visit
+    if not user32.EnumWindows(_visit, 0):
+        return None
+    covers = []
+    pids = set()
+    for left, top, width, height, pid in found:
+        if pid:
+            pids.add(pid)
+        hwnd = user32.CreateWindowExW(
+            0x00080000 | 0x00000008 | 0x00000080 | 0x08000000,
+            "opv-drag-cover",
+            "opv-drag-cover",
+            0x80000000,
+            left - 4, top - 4, width + 8, height + 8,
+            None, None, _drag_k32().GetModuleHandleW(None), None,
+        )
+        if not hwnd:
+            _drag_destroy_covers(covers)
+            _DRAG_BROWSER_PIDS = set()
+            return None
+        user32.SetLayeredWindowAttributes(hwnd, 0, 1, 0x02)
+        user32.SetWindowPos(hwnd, ctypes.c_void_p(-1), left - 4, top - 4, width + 8, height + 8, 0x0040 | 0x0010)
+        covers.append(hwnd)
+        _DRAG_COVER_HWNDS.add(int(hwnd))
+    _DRAG_BROWSER_PIDS = pids
+    for left, top, width, height, _pid in found:
+        points = [(left + width // 2, top + height // 2)]
+        if width > 48 and height > 48:
+            points.extend((
+                (left + 16, top + 16),
+                (left + width - 16, top + 16),
+                (left + 16, top + height - 16),
+                (left + width - 16, top + height - 16),
+            ))
+        for x, y in points:
+            hit = user32.WindowFromPoint(_DragPoint(int(x), int(y)))
+            root = int(user32.GetAncestor(hit, 2) or hit or 0)
+            if root and _drag_hwnd_pid(user32, root) in pids:
+                _drag_destroy_covers(covers)
+                _DRAG_BROWSER_PIDS = set()
+                return None
+    print("[opv-drag] covers=%s" % len(covers))
+    return covers
+
+
 def _ensure_drag_sta():
     global _DRAG_STA_QUEUE, _DRAG_STA_THREAD
     with _DRAG_STA_READY:
@@ -5072,16 +5378,17 @@ def _ensure_drag_sta():
 
 
 def _win_drag_files_sta(paths):
-    """在专用线程里做系统拖放。光标靠消息补发，不跟前台窗口绑输入队列。"""
+    """ComfyUI 进程里不能做系统拖拽。拖拽卡住时鼠标会一直被占住。"""
+    return False, ""
     shell32 = ctypes.windll.shell32
     user32 = _drag_user32()
-    kernel32 = ctypes.windll.kernel32
-    kernel32.GetCurrentThreadId.restype = ctypes.c_uint32
+    kernel32 = _drag_k32()
     global _DRAG_SRC_HOLD
     src = None
     data = None
     pidls = ()
     pump = None
+    covers = []
     stop_pump = threading.Event()
     _DRAG_ABORT.clear()
     try:
@@ -5099,7 +5406,17 @@ def _win_drag_files_sta(paths):
         # msg 必须活过这次调用。addressof(_MSG()) 会在写入前被回收，系统消息写进已释放内存。
         while user32.PeekMessageW(ctypes.addressof(msg), None, 0, 0, 1):
             pass
-        if not _left_button_down():
+        if not _DRAG_PHYS_DOWN[0]:
+            return False, ""
+        _drag_bind_cover()
+        our_tid = kernel32.GetCurrentThreadId()
+        pump = threading.Thread(target=_drag_pump, args=(stop_pump, our_tid), name="opv-drag-pump", daemon=True)
+        pump.start()
+        covers = _drag_raise_browser_covers()
+        if covers is None:
+            print("[opv-drag] cover miss, skip")
+            return False, "拖出被拦住了，避免浏览器再次卡死"
+        if not _DRAG_PHYS_DOWN[0]:
             return False, ""
         data, pidls = _win_drag_data_object(paths[0])
         src = _win_drop_source()
@@ -5113,9 +5430,8 @@ def _win_drag_files_sta(paths):
         shell32.SHDoDragDrop.restype = ctypes.HRESULT
         effect = ctypes.c_uint32(0)
         src_ptr = ctypes.c_void_p(ctypes.addressof(src["obj"]))
-        our_tid = kernel32.GetCurrentThreadId()
-        pump = threading.Thread(target=_drag_pump, args=(stop_pump, our_tid), name="opv-drag-pump", daemon=True)
-        pump.start()
+        while user32.PeekMessageW(ctypes.addressof(msg), None, 0, 0, 1):
+            pass
         hr = int(shell32.SHDoDragDrop(None, data, src_ptr, 1, ctypes.byref(effect)))
         code = hr & 0xFFFFFFFF
         got = int(effect.value)
@@ -5125,6 +5441,13 @@ def _win_drag_files_sta(paths):
         if code == _DRAG_S_CANCEL:
             return False, ""
         if got == 0:
+            over_browser = False
+            try:
+                over_browser = _drag_cursor_hits_browser() or _drag_cursor_over_cover()
+            except Exception:
+                over_browser = False
+            if over_browser:
+                return False, ""
             return False, "松开时鼠标下面的窗口没有接住图片"
         return True, ""
     except Exception:
@@ -5132,6 +5455,9 @@ def _win_drag_files_sta(paths):
     finally:
         stop_pump.set()
         _DRAG_ABORT.set()
+        _DRAG_PHYS_DOWN[0] = False
+        _drag_destroy_covers(covers)
+        _DRAG_BROWSER_PIDS.clear()
         if pump is not None:
             pump.join(timeout=1.0)
         if data:
@@ -5149,6 +5475,7 @@ def _win_drag_files_sta(paths):
 
 
 def _win_drag_files(paths):
+    """在单独进程里拖文件。那个进程若在松手后还不退出，就把它杀掉，鼠标不会留在 ComfyUI 里。"""
     if sys.platform != "win32":
         return False, "当前只支持在 Windows 里拖出"
     if not paths:
@@ -5157,14 +5484,42 @@ def _win_drag_files(paths):
         return False, ""
     if not _DRAG_LOCK.acquire(blocking=False):
         return False, "正在拖出另一张图"
+    helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "opv_file_drag.py")
+    proc = None
     try:
-        _ensure_drag_sta()
-        done = threading.Event()
-        job = {"paths": list(paths), "done": done, "ok": False, "err": "拖出失败"}
-        _DRAG_STA_QUEUE.put(job)
-        done.wait()
-        return bool(job["ok"]), job.get("err") or ""
+        proc = subprocess.Popen(
+            [sys.executable, helper, os.path.abspath(paths[0])],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            creationflags=0x08000000,
+        )
+        _DRAG_CHILD["proc"] = proc
+        try:
+            out, err = proc.communicate(timeout=120)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            out, err = proc.communicate()
+        if err:
+            text_err = err.decode("utf-8", "replace").strip()
+            if text_err:
+                print(text_err[:800])
+        text = (out or b"").decode("utf-8", "replace").strip()
+        code = proc.returncode
+        if text.startswith("OK"):
+            return True, ""
+        if text.startswith("QUIET") or code in (2, 3, 4):
+            return False, ""
+        if text.startswith("ERR"):
+            msg = text.split("\t", 1)[-1].strip()
+            return False, msg or "拖出失败"
+        return False, ""
+    except Exception:
+        if proc is not None and proc.poll() is None:
+            proc.kill()
+        return False, "拖出失败"
     finally:
+        if _DRAG_CHILD.get("proc") is proc:
+            _DRAG_CHILD["proc"] = None
         _DRAG_LOCK.release()
 
 
@@ -7262,6 +7617,18 @@ def register_routes():
             return web.json_response({"ok": False, "error": err})
         except Exception as e:
             return web.json_response({"ok": False, "error": str(e)})
+
+    @PromptServer.instance.routes.post("/danbooru_anima/output_prompt/drag_abort")
+    async def api_drag_abort(request):
+        _DRAG_ABORT.set()
+        _DRAG_PHYS_DOWN[0] = False
+        proc = _DRAG_CHILD.get("proc")
+        if proc is not None and proc.poll() is None:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        return web.json_response({"ok": True})
 
     @PromptServer.instance.routes.post("/danbooru_anima/output_prompt/recycle")
     async def api_recycle(request):

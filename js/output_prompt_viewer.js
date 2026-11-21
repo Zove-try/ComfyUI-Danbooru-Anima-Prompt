@@ -1,6 +1,26 @@
 (function () {
-    if (window.__animaOutputPromptViewer >= 177) return;
-    window.__animaOutputPromptViewer = 177;
+    if (window.__animaOutputPromptViewer >= 180) return;
+    window.__animaOutputPromptViewer = 180;
+    if (!window.__opvFileDragGuard) {
+        window.__opvFileDragGuard = true;
+        var opvFileDrag = function (e) {
+            var dt = e.dataTransfer;
+            if (!dt || !dt.types) return;
+            var i, file = false;
+            for (i = 0; i < dt.types.length; i++) {
+                if (dt.types[i] === "DownloadURL") return;
+                if (dt.types[i] === "Files") file = true;
+            }
+            if (!file) return;
+            e.preventDefault();
+        };
+        window.addEventListener("dragenter", opvFileDrag, true);
+        window.addEventListener("dragover", opvFileDrag, true);
+        window.addEventListener("drop", opvFileDrag, true);
+        window.addEventListener("pagehide", function () {
+            try { fetch("/danbooru_anima/output_prompt/drag_abort", { method: "POST", keepalive: true }); } catch (eAb) {}
+        });
+    }
 
     var LS_SKIN = "anima_opv_skin";
     var _skinDockReady = false;
@@ -10289,7 +10309,7 @@
     var _osDrag = null;
     var _osDragEatClick = false;
     function osDragDown(e, it) {
-        if (!e || e.button !== 0 || _editOn || !it || !it.filename) return;
+        if (!e || e.button !== 0 || _editOn || state.compareOn || !it || !it.filename) return;
         if (e.pointerType && e.pointerType !== "mouse") return;
         if (e.target && e.target.closest && e.target.closest("button, a, input, textarea")) return;
         _osDrag = { x: e.clientX, y: e.clientY, it: it, sent: false, pid: e.pointerId };
@@ -10320,7 +10340,7 @@
         if (dx * dx + dy * dy < 64) return;
         d.sent = true;
         _osDragEatClick = true;
-        setTimeout(function () { _osDragEatClick = false; }, 500);
+        setTimeout(function () { _osDragEatClick = false; }, 700);
         hidePeek();
         osDragSend(d.it);
     }
@@ -10341,6 +10361,7 @@
         if (!img) return;
         img.draggable = false;
         img.classList.remove("is-file-drag");
+        img.style.webkitUserDrag = "none";
     }
     function makeTile(it, selKey, delayIdx, cheap) {
         var picked = cmpFind(it) >= 0;
@@ -10367,7 +10388,6 @@
         img.alt = it.filename;
         img.draggable = false;
         tile.draggable = false;
-        tile.addEventListener("dragstart", function (e) { e.preventDefault(); });
         img.onload = function () {
             img.classList.add("is-ready");
             if (window.__animaGalleryPtrDown) { _flowHoldLayout = true; return; }
@@ -12107,6 +12127,11 @@
         window.addEventListener("pointermove", osDragMove, true);
         window.addEventListener("pointerup", osDragUp, true);
         window.addEventListener("pointercancel", osDragUp, true);
+        document.addEventListener("dragstart", function (e) {
+            var t = e.target;
+            if (!t || !t.closest) return;
+            if (t.closest(".tile") || t.id === "lightbox-img") e.preventDefault();
+        }, true);
         var galDrag = document.getElementById("gallery");
         if (galDrag) {
             galDrag.addEventListener("pointerdown", function (e) {
@@ -12992,7 +13017,6 @@
                 if (_lb.zoom <= 1.02) setLbNative(true);
                 else lbFit();
             });
-            img.addEventListener("dragstart", function (e) { e.preventDefault(); });
             img.addEventListener("pointerdown", function (e) {
                 if (_lb.zoom > 1.02) return;
                 osDragDown(e, _lbFile);
